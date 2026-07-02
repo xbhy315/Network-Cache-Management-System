@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<DialogPane xmlns="http://javafx.com/javafx/26" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.cache.client.ui.CacheEntryController"
+            headerText="Add / Edit Cache Entry">
+    <content>
+        <GridPane hgap="10" vgap="10" padding="15">
+            <Label text="Key:" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+            <TextField fx:id="keyField" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+            <Label text="Value:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+            <TextArea fx:id="valueField" GridPane.rowIndex="1" GridPane.columnIndex="1" prefRowCount="3"/>
+
+            <Label text="TTL (seconds):" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+            <TextField fx:id="ttlField" promptText="0 = no expiry" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+        </GridPane>
+    </content>
+</DialogPane>
