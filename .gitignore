@@ -1,0 +1,39 @@
+## Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+*.class
+*.jar
+*.war
+
+## IDE - IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+
+## IDE - VS Code
+.vscode/
+*.swp
+*.swo
+
+## IDE - Eclipse
+.project
+.classpath
+.settings/
+bin/
+
+## OS
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+## Logs
+*.log
+
+## Config override (local only, not committed)
+config.local.properties
+
+## Office documents (source material, not code)
+*.docx

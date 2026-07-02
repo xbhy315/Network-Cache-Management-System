@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/26" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.cache.client.ui.MainController" spacing="10">
+    <padding>
+        <Insets top="15" right="15" bottom="15" left="15"/>
+    </padding>
+
+    <!-- Input area -->
+    <HBox spacing="10">
+        <TextField fx:id="keyField" promptText="Key" prefWidth="200"/>
+        <TextField fx:id="valueField" promptText="Value" prefWidth="300"/>
+        <TextField fx:id="ttlField" promptText="TTL (s)" prefWidth="100"/>
+        <Button text="Add / Update" onAction="#onAdd"/>
+        <Button text="Delete" onAction="#onDelete"/>
+        <Button text="Refresh" onAction="#onRefresh"/>
+    </HBox>
+
+    <!-- Cache entries table -->
+    <TableView fx:id="tableView" VBox.vgrow="ALWAYS">
+        <columns>
+            <TableColumn fx:id="keyColumn" text="Key" prefWidth="250"/>
+            <TableColumn fx:id="valueColumn" text="Value" prefWidth="400"/>
+            <TableColumn fx:id="ttlColumn" text="TTL (s)" prefWidth="100"/>
+        </columns>
+    </TableView>
+
+    <!-- Status bar -->
+    <Label fx:id="statusLabel" text="Ready"/>
+</VBox>
