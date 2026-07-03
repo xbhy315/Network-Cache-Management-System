@@ -24,6 +24,7 @@ public class MainController {
     @FXML private TextField serverHostField;
     @FXML private TextField serverPortField;
     @FXML private Label connectionStatusLabel;
+    // TODO [组员B]: 新增 FXML 控件 — 多连接面板（连接列表 / 标签页 / 切换按钮）
 
     // ================================================================
     // [组员A] FXML 注入 — CRUD 输入区域
@@ -31,6 +32,16 @@ public class MainController {
     @FXML private TextField keyField;
     @FXML private TextField valueField;
     @FXML private TextField ttlField;
+
+    // ================================================================
+    // [组员A] 新增 — Key 详情/操作区域
+    // ================================================================
+    @FXML private TextField detailKeyField;
+    @FXML private Label detailTypeLabel;
+    @FXML private Label detailTtlLabel;
+    @FXML private TextField expireField;
+    @FXML private Button checkBtn;
+    @FXML private Button expireBtn;
 
     // ================================================================
     // [组员C] FXML 注入 — 搜索区域
@@ -71,6 +82,9 @@ public class MainController {
         ttlColumn.setCellValueFactory(new PropertyValueFactory<>("ttlSeconds"));
         createTimeColumn.setCellValueFactory(new PropertyValueFactory<>("createTime"));
         // statusColumn 需要自定义 cellFactory — 见组员A TODO
+        // TODO [组员A]: 表格列排序支持（点击列头排序）
+        // TODO [组员A]: TTL 列显示增强 — 显示剩余秒数而非原始值
+        // TODO [组员A]: statusColumn 用自定义 cellFactory 显示 "正常/已过期/即将过期"
 
         refreshTable();
         updateStats();
@@ -156,6 +170,26 @@ public class MainController {
         client.clear();
         refreshTable();
         updateStats();
+    }
+
+    // ================================================================
+    // [组员A] 新增 — Key 详情 / 类型 / TTL 操作
+    // ================================================================
+
+    @FXML
+    private void onCheckKey() {
+        // TODO [组员A]: 读取 detailKeyField 的 key
+        // TODO [组员A]: 调用 client.exists(key) 和 client.type(key) 和 client.ttl(key)
+        // TODO [组员A]: 更新 detailTypeLabel / detailTtlLabel 显示结果
+        // TODO [组员A]: 若 key 不存在，标签显示红色提示
+    }
+
+    @FXML
+    private void onSetExpire() {
+        // TODO [组员A]: 读取 detailKeyField 的 key 和 expireField 的秒数
+        // TODO [组员A]: 调用 client.expire(key, seconds)
+        // TODO [组员A]: 更新 detailTtlLabel 并刷新表格
+        // TODO [组员A]: 弹出成功/失败提示
     }
 
     // ================================================================

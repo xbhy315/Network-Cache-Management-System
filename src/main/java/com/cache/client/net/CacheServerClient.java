@@ -41,4 +41,32 @@ public interface CacheServerClient {
 
     /** Return server-side statistics. */
     Map<String, String> stats();
+
+    // ================================================================
+    // [组长] 新增接口方法 — 各组员按分工实现各自部分
+    // ================================================================
+
+    /** Check whether a key exists (and has not expired). */
+    boolean exists(String key);
+
+    /**
+     * Set a time-to-live (in seconds) on an existing key.
+     * @param key     the existing key
+     * @param seconds TTL in seconds (<= 0 means remove expiry)
+     * @return true if the key existed and TTL was set
+     */
+    boolean expire(String key, long seconds);
+
+    /**
+     * Get the remaining time-to-live of a key, in seconds.
+     * @param key the key to query
+     * @return remaining TTL in seconds; -1 if key has no expiry; -2 if key does not exist
+     */
+    long ttl(String key);
+
+    /**
+     * Return the data type of the stored value for the given key.
+     * Typical return values: "string", "list", "hash", "none" (if key does not exist).
+     */
+    String type(String key);
 }
