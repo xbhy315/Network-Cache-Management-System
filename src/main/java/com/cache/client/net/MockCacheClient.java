@@ -5,6 +5,8 @@ import com.cache.client.model.CacheEntry;
 import com.cache.client.CacheClientApp;
 import com.cache.client.util.Config;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -101,6 +103,67 @@ public class MockCacheClient implements CacheServerClient {
         s.put("connections", "1");
         s.put("uptime", "2h 15m");
         return s;
+    }
+
+    // ================================================================
+    // [各组员] 新增接口方法 — Mock 实现（各组员完成各自部分）
+    // ================================================================
+
+    @Override
+    public boolean exists(String key) {
+        // TODO [组员A / 组员C]: 检查 key 是否存在且未过期
+        // 提示: 参考 get() 方法的过期检查逻辑
+        CacheEntry entry = store.get(key);
+        if (entry == null || entry.isExpired()) {
+            store.remove(key);
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean expire(String key, long seconds) {
+        // TODO [组员A]: 为指定 key 重新设置过期时间
+        // 提示: 获取已有 CacheEntry，修改其 ttlSeconds 和 createTime
+        CacheEntry entry = store.get(key);
+        if (entry == null || entry.isExpired()) {
+            store.remove(key);
+            return false;
+        }
+        entry.setTtlSeconds(seconds);
+        entry.setCreateTime(Instant.now());
+        return true;
+    }
+
+    @Override
+    public long ttl(String key) {
+        // TODO [组员A]: 返回 key 的剩余生存时间（秒）
+        // 提示: 计算 createTime + ttlSeconds - now
+        CacheEntry entry = store.get(key);
+        if (entry == null) {
+            return -2;  // key 不存在
+        }
+        if (entry.isExpired()) {
+            store.remove(key);
+            return -2;
+        }
+        if (entry.getTtlSeconds() <= 0) {
+            return -1;  // 永不过期
+        }
+        long elapsed = Duration.between(entry.getCreateTime(), Instant.now()).getSeconds();
+        long remaining = entry.getTtlSeconds() - elapsed;
+        return Math.max(0, remaining);
+    }
+
+    @Override
+    public String type(String key) {
+        // TODO [组员C]: 返回 key 存储的数据类型
+        // 当前所有 value 都是 String，返回 "string"
+        // 后续可根据第一组的 Hash/List 类型扩展
+        if (store.containsKey(key)) {
+            return "string";
+        }
+        return "none";
     }
 
     private boolean match(String pattern, String key) {

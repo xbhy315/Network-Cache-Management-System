@@ -57,4 +57,17 @@ public class CacheEntry {
         }
         return Instant.now().isAfter(createTime.plusSeconds(ttlSeconds));
     }
+
+    /**
+     * [组员A] 返回剩余生存时间（秒）。
+     * @return 剩余秒数；如果永不过期返回 -1；如果已过期返回 0
+     */
+    public long getRemainingTtl() {
+        if (ttlSeconds <= 0) {
+            return -1;
+        }
+        long elapsed = java.time.Duration.between(createTime, Instant.now()).getSeconds();
+        long remaining = ttlSeconds - elapsed;
+        return Math.max(0, remaining);
+    }
 }
