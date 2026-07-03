@@ -24,7 +24,7 @@ public class MainController {
     @FXML private TextField serverHostField;
     @FXML private TextField serverPortField;
     @FXML private Label connectionStatusLabel;
-    // TODO [组员B]: 新增 FXML 控件 — 多连接面板（连接列表 / 标签页 / 切换按钮）
+    // TODO [组员B]: 新增 FXML 控件 — 多客户端面板（标签页，每个标签页一个独立客户端实例）
 
     // ================================================================
     // [组员A] FXML 注入 — CRUD 输入区域
