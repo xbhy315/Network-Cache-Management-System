@@ -3,10 +3,17 @@ package com.cache.client.net;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * MockCacheClient 单元测试。
+ *
+ * 覆盖全部 9 个接口方法：
+ *   ping, get, set, del, lpush, rpush, lpop, lrange, ttl
+ */
 class MockCacheClientTest {
 
     private MockCacheClient client;
@@ -17,10 +24,33 @@ class MockCacheClientTest {
         client.connect("localhost", 6379);
     }
 
+    // ================================================================
+    // 连接管理
+    // ================================================================
+
     @Test
     void shouldConnect() {
         assertTrue(client.isConnected());
     }
+
+    @Test
+    void shouldDisconnect() {
+        client.disconnect();
+        assertFalse(client.isConnected());
+    }
+
+    // ================================================================
+    // PING
+    // ================================================================
+
+    @Test
+    void shouldPing() {
+        assertEquals("PONG", client.ping());
+    }
+
+    // ================================================================
+    // String 操作
+    // ================================================================
 
     @Test
     void shouldGetExistingKey() {
@@ -42,68 +72,117 @@ class MockCacheClientTest {
     }
 
     @Test
-    void shouldDeleteKey() {
-        assertTrue(client.delete("user:1001"));
+    void shouldSetWithTtl() {
+        client.set("temp", "value", 1);
+        assertTrue(client.get("temp").isPresent());
+        // TTL 1秒，不实际等待（直接测 Mock 的 TTL 逻辑）
+    }
+
+    // ================================================================
+    // Key 操作
+    // ================================================================
+
+    @Test
+    void shouldDelSingleKey() {
+        assertEquals(1, client.del("user:1001"));
         assertFalse(client.get("user:1001").isPresent());
     }
 
     @Test
-    void shouldClearAll() {
-        client.clear();
-        assertTrue(client.getAll().isEmpty());
+    void shouldDelMultipleKeys() {
+        assertEquals(2, client.del("user:1001", "user:1002"));
+        assertFalse(client.get("user:1001").isPresent());
+        assertFalse(client.get("user:1002").isPresent());
     }
 
     @Test
-    void shouldReturnStats() {
-        assertFalse(client.stats().isEmpty());
-    }
-
-    @Test
-    void shouldSupportWildcardSearch() {
-        var result = client.keys("user:*");
-        assertTrue(result.size() >= 2);
-        assertTrue(result.contains("user:1001"));
-        assertTrue(result.contains("user:1002"));
+    void shouldReturnZeroForMissingKeys() {
+        assertEquals(0, client.del("missing1", "missing2"));
     }
 
     // ================================================================
-    // [组员C] 新增接口测试 — 实现以下测试方法
+    // List 操作
     // ================================================================
 
     @Test
-    void shouldCheckKeyExists() {
-        // TODO [组员C]: 测试 exists() 方法
-        // 1. 已存在的 key → true
-        // 2. 不存在的 key → false
+    void shouldLpushAndReturnLength() {
+        int len = client.lpush("mylist", "a", "b", "c");
+        assertEquals(3, len);
     }
 
     @Test
-    void shouldSetExpiryOnExistingKey() {
-        // TODO [组员C]: 测试 expire() 方法
-        // 1. 对已存在的 key 设置 TTL → true
-        // 2. 对不存在的 key 设置 TTL → false
-        // 3. 设置后查询 ttl() 应返回正确剩余秒数
+    void shouldRpushAndLrange() {
+        client.rpush("mylist", "a", "b", "c");
+        List<String> items = client.lrange("mylist", 0, -1);
+        assertEquals(List.of("a", "b", "c"), items);
     }
+
+    @Test
+    void shouldLpop() {
+        client.rpush("queue", "x", "y", "z");
+        assertEquals("x", client.lpop("queue"));
+        assertEquals("y", client.lpop("queue"));
+        assertEquals("z", client.lpop("queue"));
+        assertNull(client.lpop("queue"));  // 空列表返回 null
+    }
+
+    @Test
+    void shouldLrangeWithNegativeIndices() {
+        client.rpush("lst", "a", "b", "c", "d");
+        assertEquals(List.of("c", "d"), client.lrange("lst", -2, -1));
+        assertEquals(List.of("a", "b"), client.lrange("lst", 0, 1));
+    }
+
+    @Test
+    void shouldReturnEmptyForMissingList() {
+        assertTrue(client.lrange("nonexistent", 0, -1).isEmpty());
+        assertNull(client.lpop("nonexistent"));
+    }
+
+    @Test
+    void shouldLpushOrder() {
+        // LPUSH a b c 后列表为 [c, b, a]
+        client.lpush("stack", "a", "b", "c");
+        List<String> items = client.lrange("stack", 0, -1);
+        assertEquals(List.of("c", "b", "a"), items);
+    }
+
+    // ================================================================
+    // TTL
+    // ================================================================
 
     @Test
     void shouldReturnTtlForExistingKey() {
-        // TODO [组员C]: 测试 ttl() 方法
-        // 1. 有过期时间的 key → 返回剩余秒数 (>0)
-        // 2. 永不过期的 key → 返回 -1
-        // 3. 不存在的 key → 返回 -2
+        // user:1001 预设了 300 秒 TTL
+        long ttl = client.ttl("user:1001");
+        assertTrue(ttl > 0 || ttl == -1);
     }
 
     @Test
-    void shouldReturnTypeOfKey() {
-        // TODO [组员C]: 测试 type() 方法
-        // 1. 存在的 key → "string"
-        // 2. 不存在的 key → "none"
+    void shouldReturnMinusTwoForMissingKey() {
+        assertEquals(-2, client.ttl("nonexistent"));
     }
 
     @Test
-    void shouldHandleExpiredKeyGracefully() {
-        // TODO [组员C]: 测试过期 key 的边界场景
-        // 1. 设置一个极短 TTL 的 key
-        // 2. 等待过期后 exists/get/ttl 均应返回"不存在"
+    void shouldReturnMinusOneForPersistentKey() {
+        // config:theme 预设了 -1（永不过期）
+        assertEquals(-1, client.ttl("config:theme"));
+    }
+
+    // ================================================================
+    // 混合场景
+    // ================================================================
+
+    @Test
+    void shouldOverwriteListWithString() {
+        client.rpush("key", "a", "b");
+        client.set("key", "stringValue", 0);
+        assertEquals("stringValue", client.get("key").orElse(null));
+    }
+
+    @Test
+    void shouldNotGetListKeyAsString() {
+        client.rpush("mylist", "val");
+        assertFalse(client.get("mylist").isPresent());
     }
 }

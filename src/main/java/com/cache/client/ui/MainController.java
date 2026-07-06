@@ -1,21 +1,33 @@
 package com.cache.client.ui;
 
+import com.cache.client.CacheClientApp;
 import com.cache.client.model.CacheEntry;
 import com.cache.client.net.CacheServerClient;
 import com.cache.client.net.MockCacheClient;
+import com.cache.client.util.ExportUtil;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.stage.FileChooser;
 
+import java.io.File;
+import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
+/**
+ * 主界面控制器。
+ *
+ * 通过 CacheServerClient 接口与缓存服务端通信，
+ * 不依赖具体实现（Mock / RESP 均可）。
+ */
 public class MainController {
 
-    private final CacheServerClient client = new MockCacheClient();
+    // 客户端实例 — 从 CacheClientApp 全局获取
+    private final CacheServerClient client = CacheClientApp.getClient();
     private final ObservableList<CacheEntry> tableData = FXCollections.observableArrayList();
 
     // ================================================================
@@ -24,7 +36,8 @@ public class MainController {
     @FXML private TextField serverHostField;
     @FXML private TextField serverPortField;
     @FXML private Label connectionStatusLabel;
-    // TODO [组员B]: 新增 FXML 控件 — 多客户端面板（标签页，每个标签页一个独立客户端实例）
+    // 多客户端面板（标签页）— 由组员B后续实现
+    // @FXML private TabPane multiClientTabPane;
 
     // ================================================================
     // [组员A] FXML 注入 — CRUD 输入区域
@@ -34,37 +47,36 @@ public class MainController {
     @FXML private TextField ttlField;
 
     // ================================================================
-    // [组员A] 新增 — Key 详情/操作区域
+    // [组员C] FXML 注入 — 数据管理区域
     // ================================================================
-    @FXML private TextField detailKeyField;
-    @FXML private Label detailTypeLabel;
-    @FXML private Label detailTtlLabel;
-    @FXML private TextField expireField;
-    @FXML private Button checkBtn;
-    @FXML private Button expireBtn;
-
-    // ================================================================
-    // [组员C] FXML 注入 — 搜索区域
-    // ================================================================
-    @FXML private TextField searchField;
-
-    // ================================================================
-    // [组员A] FXML 注入 — 表格
-    // ================================================================
+    @FXML private TextField searchField;  // 改为本地过滤，不再依赖 KEYS 命令
     @FXML private TableView<CacheEntry> tableView;
     @FXML private TableColumn<CacheEntry, String> keyColumn;
     @FXML private TableColumn<CacheEntry, String> valueColumn;
     @FXML private TableColumn<CacheEntry, Long> ttlColumn;
     @FXML private TableColumn<CacheEntry, Instant> createTimeColumn;
-    @FXML private TableColumn<CacheEntry, String> statusColumn;
+    @FXML private TableColumn<CacheEntry, String> statusColumn; // "类型"列：STRING / LIST
+    @FXML private TableColumn<CacheEntry, String> typeColumn;   // 显示数据类型
 
     // ================================================================
-    // [组员B] FXML 注入 — 统计面板
+    // [新增 - 组员A] List 操作面板
     // ================================================================
-    @FXML private Label statEntriesLabel;
-    @FXML private Label statHitRateLabel;
-    @FXML private Label statMemoryLabel;
-    @FXML private Label statUptimeLabel;
+    @FXML private TextField listKeyField;
+    @FXML private TextField listValueField;
+    @FXML private ListView<String> listResultView;
+    @FXML private Label listLengthLabel;
+
+    // ================================================================
+    // [新增 - 组员B] TTL 查询面板
+    // ================================================================
+    @FXML private TextField ttlKeyField;
+    @FXML private Label ttlResultLabel;
+
+    // ================================================================
+    // [新增 - 组员B] PING 按钮
+    // ================================================================
+    @FXML private Button pingButton;
+    @FXML private Label pingResultLabel;
 
     // ================================================================
     //  状态栏
@@ -74,20 +86,27 @@ public class MainController {
     // ================================================================
     // 初始化
     // ================================================================
+
     @FXML
     public void initialize() {
-        // [组员A] 绑定表格列
+        // 绑定表格列
         keyColumn.setCellValueFactory(new PropertyValueFactory<>("key"));
         valueColumn.setCellValueFactory(new PropertyValueFactory<>("value"));
         ttlColumn.setCellValueFactory(new PropertyValueFactory<>("ttlSeconds"));
         createTimeColumn.setCellValueFactory(new PropertyValueFactory<>("createTime"));
-        // statusColumn 需要自定义 cellFactory — 见组员A TODO
-        // TODO [组员A]: 表格列排序支持（点击列头排序）
-        // TODO [组员A]: TTL 列显示增强 — 显示剩余秒数而非原始值
-        // TODO [组员A]: statusColumn 用自定义 cellFactory 显示 "正常/已过期/即将过期"
+
+        // typeColumn — 显示数据类型（STRING / LIST）
+        typeColumn.setCellValueFactory(new PropertyValueFactory<>("type"));
+
+        // statusColumn — 用于显示"正常/已过期/即将过期"状态
+        // TODO [组员A]: 用自定义 cellFactory 显示条目状态
+        // TTL > 60s → "正常"
+        // TTL 0~60s → "即将过期"
+        // TTL = 0  → "已过期"
+        // LIST 类型 → "[N items]"
 
         refreshTable();
-        updateStats();
+        updateStatusBar();
     }
 
     // ================================================================
@@ -96,36 +115,44 @@ public class MainController {
 
     @FXML
     private void onConnect() {
-        // TODO 组员B: 读取 serverHostField / serverPortField
-        // TODO 组员B: 调用 client.connect(host, port)
-        // TODO 组员B: 更新 connectionStatusLabel 文字和颜色
-        // TODO 组员B: 异常时弹出 Alert
+        String host = serverHostField.getText().trim();
+        if (host.isEmpty()) host = CacheClientApp.getConfig().getDefaultHost();
+        int port = CacheClientApp.getConfig().getDefaultPort();
+        try {
+            port = Integer.parseInt(serverPortField.getText().trim());
+        } catch (NumberFormatException ignored) {}
+
+        try {
+            client.connect(host, port);
+            connectionStatusLabel.setText("Connected to " + host + ":" + port);
+            connectionStatusLabel.setStyle("-fx-text-fill: green;");
+        } catch (Exception e) {
+            connectionStatusLabel.setText("Connection failed: " + e.getMessage());
+            connectionStatusLabel.setStyle("-fx-text-fill: red;");
+        }
     }
 
     @FXML
     private void onDisconnect() {
-        // TODO 组员B: 调用 client.disconnect()
-        // TODO 组员B: 更新 connectionStatusLabel
+        client.disconnect();
+        connectionStatusLabel.setText("Disconnected");
+        connectionStatusLabel.setStyle("-fx-text-fill: gray;");
     }
 
     // ================================================================
-    // [组员B] 统计面板
+    // [新增 - 组员B] PING
     // ================================================================
 
     @FXML
-    private void onShowStats() {
-        // TODO 组员B: 弹出详细统计对话框
-        // TODO 组员B: 调用 client.stats() 并展示
-    }
-
-    private void updateStats() {
-        // TODO 组员B: 从 client.stats() 获取数据
-        // TODO 组员B: 更新 statEntriesLabel / statHitRateLabel / statMemoryLabel / statUptimeLabel
-        Map<String, String> stats = client.stats();
-        statEntriesLabel.setText("Entries: " + stats.getOrDefault("entries", "-"));
-        statHitRateLabel.setText("Hit Rate: " + stats.getOrDefault("hit_rate", "-"));
-        statMemoryLabel.setText("Memory: " + stats.getOrDefault("memory", "-"));
-        statUptimeLabel.setText("Uptime: " + stats.getOrDefault("uptime", "-"));
+    private void onPing() {
+        try {
+            String result = client.ping();
+            pingResultLabel.setText(result);
+            pingResultLabel.setStyle("-fx-text-fill: green;");
+        } catch (Exception e) {
+            pingResultLabel.setText("Error: " + e.getMessage());
+            pingResultLabel.setStyle("-fx-text-fill: red;");
+        }
     }
 
     // ================================================================
@@ -134,20 +161,18 @@ public class MainController {
 
     @FXML
     private void onAdd() {
-        // TODO 组员A: 改为弹出 CacheEntryDialog 进行输入
-        // TODO 组员A: 当前简化版本直接从输入框读取
+        // TODO [组员A]: 改为弹出 CacheEntryDialog 进行输入
         String key = keyField.getText().trim();
         String value = valueField.getText().trim();
         long ttl = 0;
         try {
             ttl = Long.parseLong(ttlField.getText().trim());
-        } catch (NumberFormatException ignored) {
-        }
+        } catch (NumberFormatException ignored) {}
         if (key.isEmpty() || value.isEmpty()) return;
 
         client.set(key, value, ttl);
         refreshTable();
-        updateStats();
+        updateStatusBar();
         keyField.clear();
         valueField.clear();
         ttlField.clear();
@@ -155,81 +180,175 @@ public class MainController {
 
     @FXML
     private void onDelete() {
-        // TODO 组员A: 确认对话框后再删除
+        // TODO [组员A]: 确认对话框后再删除
         CacheEntry selected = tableView.getSelectionModel().getSelectedItem();
         if (selected != null) {
-            client.delete(selected.getKey());
+            client.del(selected.getKey());
             refreshTable();
-            updateStats();
+            updateStatusBar();
         }
     }
 
     @FXML
     private void onClearAll() {
-        // TODO 组员A: 弹出确认对话框后调用 client.clear()
-        client.clear();
+        // TODO [组员A]: 弹出确认对话框
+        // 由于服务端不支持 FLUSHDB，从本地缓存逐条删除
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "Clear all entries? This cannot be undone.",
+                ButtonType.YES, ButtonType.NO);
+        confirm.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.YES) {
+                // 从表格中获取所有 key 并逐个删除
+                for (CacheEntry entry : tableData) {
+                    client.del(entry.getKey());
+                }
+                refreshTable();
+                updateStatusBar();
+            }
+        });
+    }
+
+    // ================================================================
+    // [新增 - 组员A] List 操作
+    // ================================================================
+
+    @FXML
+    private void onLpush() {
+        String key = listKeyField.getText().trim();
+        String value = listValueField.getText().trim();
+        if (key.isEmpty() || value.isEmpty()) return;
+        int len = client.lpush(key, value);
+        refreshListDisplay(key);
+        listLengthLabel.setText("Length: " + len);
         refreshTable();
-        updateStats();
-    }
-
-    // ================================================================
-    // [组员A] 新增 — Key 详情 / 类型 / TTL 操作
-    // ================================================================
-
-    @FXML
-    private void onCheckKey() {
-        // TODO [组员A]: 读取 detailKeyField 的 key
-        // TODO [组员A]: 调用 client.exists(key) 和 client.type(key) 和 client.ttl(key)
-        // TODO [组员A]: 更新 detailTypeLabel / detailTtlLabel 显示结果
-        // TODO [组员A]: 若 key 不存在，标签显示红色提示
     }
 
     @FXML
-    private void onSetExpire() {
-        // TODO [组员A]: 读取 detailKeyField 的 key 和 expireField 的秒数
-        // TODO [组员A]: 调用 client.expire(key, seconds)
-        // TODO [组员A]: 更新 detailTtlLabel 并刷新表格
-        // TODO [组员A]: 弹出成功/失败提示
+    private void onRpush() {
+        String key = listKeyField.getText().trim();
+        String value = listValueField.getText().trim();
+        if (key.isEmpty() || value.isEmpty()) return;
+        int len = client.rpush(key, value);
+        refreshListDisplay(key);
+        listLengthLabel.setText("Length: " + len);
+        refreshTable();
+    }
+
+    @FXML
+    private void onLpop() {
+        String key = listKeyField.getText().trim();
+        if (key.isEmpty()) return;
+        String value = client.lpop(key);
+        if (value != null) {
+            listResultView.getItems().add(0, "POP: " + value);
+            refreshListDisplay(key);
+        } else {
+            listResultView.getItems().add(0, "POP: (empty)");
+        }
+        refreshTable();
+    }
+
+    @FXML
+    private void onLrange() {
+        String key = listKeyField.getText().trim();
+        if (key.isEmpty()) return;
+        List<String> items = client.lrange(key, 0, -1);
+        listResultView.setItems(FXCollections.observableArrayList(items));
+        listLengthLabel.setText("Length: " + items.size());
+    }
+
+    /** 刷新 List 面板的显示。 */
+    private void refreshListDisplay(String key) {
+        List<String> items = client.lrange(key, 0, -1);
+        listResultView.setItems(FXCollections.observableArrayList(items));
     }
 
     // ================================================================
-    // [组员C] 搜索 + 批量操作 + 导出
+    // [新增 - 组员B] TTL 查询
+    // ================================================================
+
+    @FXML
+    private void onTtlQuery() {
+        String key = ttlKeyField.getText().trim();
+        if (key.isEmpty()) return;
+        long ttl = client.ttl(key);
+        if (ttl == -2) {
+            ttlResultLabel.setText("Key does not exist");
+            ttlResultLabel.setStyle("-fx-text-fill: red;");
+        } else if (ttl == -1) {
+            ttlResultLabel.setText("No expiry (persistent)");
+            ttlResultLabel.setStyle("-fx-text-fill: blue;");
+        } else {
+            ttlResultLabel.setText("TTL: " + ttl + " seconds");
+            ttlResultLabel.setStyle("-fx-text-fill: green;");
+        }
+    }
+
+    // ================================================================
+    // [组员C] 本地搜索过滤
     // ================================================================
 
     @FXML
     private void onSearch() {
-        // TODO 组员C: 读取 searchField 的 pattern
-        // TODO 组员C: 调用 client.keys(pattern) 获取匹配的 key 列表
-        // TODO 组员C: 刷新表格只显示匹配的条目
-        String pattern = searchField.getText().trim();
+        // 改为本地过滤 — 不再依赖服务端的 KEYS 命令
+        String pattern = searchField.getText().trim().toLowerCase();
         if (pattern.isEmpty()) return;
-        List<String> matchedKeys = client.keys(pattern);
-        // 从 client.getAll() 过滤出匹配的条目
-        Map<String, CacheEntry> all = client.getAll();
-        tableData.setAll(all.values().stream()
-                .filter(e -> matchedKeys.contains(e.getKey()))
-                .toList());
+
+        // 获取全部本地条目
+        List<CacheEntry> all = getAllEntries();
+        if (pattern.equals("*")) {
+            tableData.setAll(all);
+        } else {
+            // 简单通配符匹配：* 表示任意字符
+            String regex = "\\Q" + pattern.replace("*", "\\E.*\\Q") + "\\E";
+            tableData.setAll(all.stream()
+                    .filter(e -> e.getKey().matches(regex))
+                    .toList());
+        }
         tableView.setItems(tableData);
-        statusLabel.setText("Matched: " + tableData.size());
+        statusLabel.setText("Filtered: " + tableData.size() + " / " + all.size());
     }
 
     @FXML
     private void onShowAll() {
-        // TODO 组员C: 清空搜索条件，显示所有条目
         searchField.clear();
         refreshTable();
     }
 
+    // ================================================================
+    // [组员C] 导出
+    // ================================================================
+
     @FXML
     private void onExportJson() {
-        // TODO 组员C: 将当前缓存数据导出为 JSON 文件
-        // TODO 组员C: 使用 FileChooser 选择保存路径
+        FileChooser fc = new FileChooser();
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON", "*.json"));
+        File file = fc.showSaveDialog(tableView.getScene().getWindow());
+        if (file != null) {
+            try {
+                List<CacheEntry> entries = getAllEntries();
+                ExportUtil.exportJson(entries, file.toPath());
+                statusLabel.setText("Exported to " + file.getName());
+            } catch (IOException e) {
+                statusLabel.setText("Export failed: " + e.getMessage());
+            }
+        }
     }
 
     @FXML
     private void onExportCsv() {
-        // TODO 组员C: 将当前缓存数据导出为 CSV 文件
-        // TODO 组员C: 使用 FileChooser 选择保存路径
+        FileChooser fc = new FileChooser();
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV", "*.csv"));
+        File file = fc.showSaveDialog(tableView.getScene().getWindow());
+        if (file != null) {
+            try {
+                List<CacheEntry> entries = getAllEntries();
+                ExportUtil.exportCsv(entries, file.toPath());
+                statusLabel.setText("Exported to " + file.getName());
+            } catch (IOException e) {
+                statusLabel.setText("Export failed: " + e.getMessage());
+            }
+        }
     }
 
     // ================================================================
@@ -239,12 +358,36 @@ public class MainController {
     @FXML
     private void onRefresh() {
         refreshTable();
-        updateStats();
+        updateStatusBar();
     }
 
     private void refreshTable() {
-        tableData.setAll(client.getAll().values());
+        List<CacheEntry> all = getAllEntries();
+        tableData.setAll(all);
         tableView.setItems(tableData);
-        statusLabel.setText("Entries: " + tableData.size());
+    }
+
+    private void updateStatusBar() {
+        int count = tableData.size();
+        statusLabel.setText("Entries: " + count
+                + " | Mode: " + (CacheClientApp.getConfig().isClientMock() ? "Mock" : "RESP"));
+    }
+
+    /**
+     * 获取全部缓存条目。
+     *
+     * Mock 模式：直接从 MockCacheClient 的本地存储获取。
+     * RESP 模式：通过 SCAN + GET 逐条获取（暂未实现，待 SCAN 格式确认）。
+     */
+    private List<CacheEntry> getAllEntries() {
+        if (client instanceof MockCacheClient mock) {
+            // Mock 模式：直接读本地存储
+            return mock.getAllLocalEntries();
+        }
+        // RESP 模式：待 SCAN 命令格式确认后实现
+        // TODO [组员C]: SCAN 格式确认后改为:
+        //   List<String> keys = client.scan("0", "*");
+        //   for (key : keys) { 逐个 GET 组装 CacheEntry }
+        return tableData.stream().toList();
     }
 }

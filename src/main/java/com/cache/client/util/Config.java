@@ -51,6 +51,12 @@ public class Config {
         return parseInt("server.reconnect.interval", 3000);
     }
 
+    // ---- Client Mode ----
+
+    public boolean isClientMock() {
+        return Boolean.parseBoolean(props.getProperty("client.mock", "true"));
+    }
+
     // ---- Mock ----
 
     public int getMockMaxEntries() {
