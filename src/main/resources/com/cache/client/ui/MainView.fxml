@@ -4,14 +4,14 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<VBox xmlns="http://javafx.com/javafx/26" xmlns:fx="http://javafx.com/fxml/1"
+<VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.cache.client.ui.MainController" spacing="10">
     <padding>
         <Insets top="15" right="15" bottom="15" left="15"/>
     </padding>
 
     <!-- ============================================================
-         [组员B] 区域1: 连接管理栏
+         [组员B] 区域1: 连接管理栏 + PING
          ============================================================ -->
     <HBox spacing="10" alignment="CENTER_LEFT">
         <Label text="Server:"/>
@@ -22,13 +22,14 @@
         <Button text="Disconnect" onAction="#onDisconnect"/>
         <Label fx:id="connectionStatusLabel" text="● Disconnected" style="-fx-text-fill: gray;"/>
         <Region HBox.hgrow="ALWAYS"/>
-        <Button text="Stats" onAction="#onShowStats"/>
+        <Button fx:id="pingButton" text="PING" onAction="#onPing"/>
+        <Label fx:id="pingResultLabel" text="" style="-fx-font-weight: bold;"/>
     </HBox>
 
     <Separator/>
 
     <!-- ============================================================
-         [组员A] 区域2: 输入 + CRUD 操作栏
+         [组员A] 区域2: CRUD + List 操作（双行）
          ============================================================ -->
     <HBox spacing="10" alignment="CENTER_LEFT">
         <TextField fx:id="keyField" promptText="Key" prefWidth="200"/>
@@ -39,13 +40,30 @@
         <Button text="Clear All" onAction="#onClearAll"/>
     </HBox>
 
+    <HBox spacing="10" alignment="CENTER_LEFT">
+        <Label text="List Op:" style="-fx-font-weight: bold;"/>
+        <TextField fx:id="listKeyField" promptText="List Key" prefWidth="150"/>
+        <TextField fx:id="listValueField" promptText="Value" prefWidth="200"/>
+        <Button text="LPUSH" onAction="#onLpush"/>
+        <Button text="RPUSH" onAction="#onRpush"/>
+        <Button text="LPOP" onAction="#onLpop"/>
+        <Button text="LRANGE" onAction="#onLrange"/>
+        <Label fx:id="listLengthLabel" text="Length: -"/>
+    </HBox>
+
+    <Separator/>
+
     <!-- ============================================================
-         [组员C] 区域3: 搜索 + 批量操作栏
+         [组员C] 区域3: 搜索 + 导出 + TTL 查询
          ============================================================ -->
     <HBox spacing="10" alignment="CENTER_LEFT">
-        <TextField fx:id="searchField" promptText="Search keys (supports *, ?)..." prefWidth="300" HBox.hgrow="ALWAYS"/>
+        <TextField fx:id="searchField" promptText="Filter keys (supports *, ?)..." prefWidth="250" HBox.hgrow="ALWAYS"/>
         <Button text="Search" onAction="#onSearch"/>
         <Button text="Show All" onAction="#onShowAll"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <TextField fx:id="ttlKeyField" promptText="TTL Key" prefWidth="120"/>
+        <Button text="Query TTL" onAction="#onTtlQuery"/>
+        <Label fx:id="ttlResultLabel" text=""/>
         <Region HBox.hgrow="ALWAYS"/>
         <Button text="Export JSON" onAction="#onExportJson"/>
         <Button text="Export CSV" onAction="#onExportCsv"/>
@@ -57,24 +75,22 @@
          ============================================================ -->
     <TableView fx:id="tableView" VBox.vgrow="ALWAYS">
         <columns>
-            <TableColumn fx:id="keyColumn" text="Key" prefWidth="200"/>
-            <TableColumn fx:id="valueColumn" text="Value" prefWidth="350"/>
+            <TableColumn fx:id="keyColumn" text="Key" prefWidth="180"/>
+            <TableColumn fx:id="typeColumn" text="Type" prefWidth="60"/>
+            <TableColumn fx:id="valueColumn" text="Value" prefWidth="320"/>
             <TableColumn fx:id="ttlColumn" text="TTL (s)" prefWidth="80"/>
-            <TableColumn fx:id="createTimeColumn" text="Create Time" prefWidth="180"/>
+            <TableColumn fx:id="createTimeColumn" text="Create Time" prefWidth="160"/>
             <TableColumn fx:id="statusColumn" text="Status" prefWidth="100"/>
         </columns>
     </TableView>
 
     <!-- ============================================================
-         [组员B] 区域5: 统计面板
+         [组员A] 区域5: List 操作结果展示
          ============================================================ -->
-    <HBox spacing="20" style="-fx-border-color: #ddd; -fx-border-radius: 5; -fx-padding: 8;">
-        <Label text="Stats —"/>
-        <Label fx:id="statEntriesLabel" text="Entries: -"/>
-        <Label fx:id="statHitRateLabel" text="Hit Rate: -"/>
-        <Label fx:id="statMemoryLabel" text="Memory: -"/>
-        <Label fx:id="statUptimeLabel" text="Uptime: -"/>
-    </HBox>
+    <VBox spacing="5" style="-fx-border-color: #ddd; -fx-border-radius: 5; -fx-padding: 8;">
+        <Label text="List Content:" style="-fx-font-weight: bold;"/>
+        <ListView fx:id="listResultView" prefHeight="80"/>
+    </VBox>
 
     <!-- ============================================================
          状态栏
