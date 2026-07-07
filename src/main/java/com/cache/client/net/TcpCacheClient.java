@@ -1,7 +1,7 @@
 package com.cache.client.net;
 
 /**
- * @deprecated 第一组协议已从 TLV（二进制）变更为 RESP（文本协议）。
+ * @deprecated 第二组协议已从 TLV（二进制）变更为 RESP（文本协议）。
  * 请使用 {@link RespCacheClient} 替代。
  *
  * 此类保留仅用于归档参考，不再维护。
