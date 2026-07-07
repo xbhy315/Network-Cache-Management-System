@@ -26,18 +26,30 @@ import java.util.Optional;
  */
 public class MainController {
 
-    // 客户端实例 — 从 CacheClientApp 全局获取
-    private final CacheServerClient client = CacheClientApp.getClient();
+    // 客户端实例 — 通过 setClient() 注入（支持多客户端）
+    // 单客户端模式下，initialize() 会自动从 CacheClientApp 获取默认实例
+    private CacheServerClient client;
+    private String tabId = "default";
     private final ObservableList<CacheEntry> tableData = FXCollections.observableArrayList();
 
+    /**
+     * 设置当前标签页的客户端实例。
+     * TabPaneController 新建标签页时调用此方法注入独立的 client。
+     *
+     * @param tabId  标签页唯一标识，用于从注册表获取/释放资源
+     * @param client 该标签页绑定的独立客户端实例
+     */
+    public void setClient(String tabId, CacheServerClient client) {
+        this.tabId = tabId;
+        this.client = client;
+    }
+
     // ================================================================
-    // [组员B] FXML 注入 — 连接管理区域
+    // FXML 注入 — 连接管理区域
     // ================================================================
     @FXML private TextField serverHostField;
     @FXML private TextField serverPortField;
     @FXML private Label connectionStatusLabel;
-    // 多客户端面板（标签页）— 由组员B后续实现
-    // @FXML private TabPane multiClientTabPane;
 
     // ================================================================
     // [组员A] FXML 注入 — CRUD 输入区域
@@ -89,6 +101,11 @@ public class MainController {
 
     @FXML
     public void initialize() {
+        // 向后兼容：如果没有通过 setClient() 注入，使用默认客户端
+        if (client == null) {
+            this.client = CacheClientApp.getDefaultClient();
+        }
+
         // 绑定表格列
         keyColumn.setCellValueFactory(new PropertyValueFactory<>("key"));
         valueColumn.setCellValueFactory(new PropertyValueFactory<>("value"));
