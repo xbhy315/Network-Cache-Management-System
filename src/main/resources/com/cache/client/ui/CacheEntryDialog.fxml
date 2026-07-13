@@ -19,4 +19,8 @@
             <TextField fx:id="ttlField" promptText="0 = no expiry" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
         </GridPane>
     </content>
+    <buttonTypes>
+        <ButtonType fx:constant="OK"/>
+        <ButtonType fx:constant="CANCEL"/>
+    </buttonTypes>
 </DialogPane>

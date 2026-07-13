@@ -8,6 +8,7 @@ import com.cache.client.util.ExportUtil;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.stage.FileChooser;
@@ -115,12 +116,31 @@ public class MainController {
         // typeColumn — 显示数据类型（STRING / LIST）
         typeColumn.setCellValueFactory(new PropertyValueFactory<>("type"));
 
-        // statusColumn — 用于显示"正常/已过期/即将过期"状态
-        // TODO [组员A]: 用自定义 cellFactory 显示条目状态
-        // TTL > 60s → "正常"
-        // TTL 0~60s → "即将过期"
-        // TTL = 0  → "已过期"
-        // LIST 类型 → "[N items]"
+        // statusColumn — 用自定义 cellFactory 显示条目状态
+        statusColumn.setCellValueFactory(new PropertyValueFactory<>("key"));
+        statusColumn.setCellFactory(col -> new TableCell<CacheEntry, String>() {
+            @Override
+            protected void updateItem(String text, boolean empty) {
+                super.updateItem(text, empty);
+                CacheEntry entry = getTableRow().getItem();
+                if (empty || entry == null) {
+                    setText(null);
+                    return;
+                }
+                if (entry.getType() == CacheEntry.EntryType.LIST) {
+                    setText("[" + entry.getListLength() + " items]");
+                } else {
+                    long remaining = entry.getRemainingTtl();
+                    if (remaining <= 0) {
+                        setText("已过期");
+                    } else if (remaining <= 60) {
+                        setText("即将过期");
+                    } else {
+                        setText("正常");
+                    }
+                }
+            }
+        });
 
         refreshTable();
         updateStatusBar();
@@ -178,37 +198,50 @@ public class MainController {
 
     @FXML
     private void onAdd() {
-        // TODO [组员A]: 改为弹出 CacheEntryDialog 进行输入
-        String key = keyField.getText().trim();
-        String value = valueField.getText().trim();
-        long ttl = 0;
         try {
-            ttl = Long.parseLong(ttlField.getText().trim());
-        } catch (NumberFormatException ignored) {}
-        if (key.isEmpty() || value.isEmpty()) return;
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("CacheEntryDialog.fxml"));
+            DialogPane dialogPane = loader.load();
+            CacheEntryController controller = loader.getController();
 
-        client.set(key, value, ttl);
-        refreshTable();
-        updateStatusBar();
-        keyField.clear();
-        valueField.clear();
-        ttlField.clear();
-    }
+            Dialog<ButtonType> dialog = new Dialog<>();
+            dialog.setDialogPane(dialogPane);
 
-    @FXML
-    private void onDelete() {
-        // TODO [组员A]: 确认对话框后再删除
-        CacheEntry selected = tableView.getSelectionModel().getSelectedItem();
-        if (selected != null) {
-            client.del(selected.getKey());
-            refreshTable();
-            updateStatusBar();
+            Optional<ButtonType> result = dialog.showAndWait();
+            if (result.isPresent() && result.get() == ButtonType.OK) {
+                String key = controller.getKey();
+                String value = controller.getValue();
+                long ttl = controller.getTtl();
+                if (key.isEmpty() || value.isEmpty()) return;
+
+                client.set(key, value, ttl);
+                refreshTable();
+                updateStatusBar();
+            }
+        } catch (IOException e) {
+            statusLabel.setText("Failed to open dialog: " + e.getMessage());
         }
     }
 
     @FXML
+    private void onDelete() {
+        CacheEntry selected = tableView.getSelectionModel().getSelectedItem();
+        if (selected == null) return;
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "Delete entry \"" + selected.getKey() + "\"?",
+                ButtonType.YES, ButtonType.NO);
+        confirm.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.YES) {
+                client.del(selected.getKey());
+                refreshTable();
+                updateStatusBar();
+            }
+        });
+    }
+
+    @FXML
     private void onClearAll() {
-        // 弹出确认对话框后再逐条删除（服务端不支持 FLUSHDB）
+// 弹出确认对话框后再逐条删除（服务端不支持 FLUSHDB）
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
                 "Clear all entries? This cannot be undone.",
                 ButtonType.YES, ButtonType.NO);
