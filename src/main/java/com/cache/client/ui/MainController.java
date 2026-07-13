@@ -394,17 +394,22 @@ public class MainController {
      * 获取全部缓存条目。
      *
      * Mock 模式：直接从 MockCacheClient 的本地存储获取。
-     * RESP 模式：通过 SCAN + GET 逐条获取（暂未实现，待 SCAN 格式确认）。
+     * RESP 模式：通过 SCAN + GET 逐条从服务端获取。
+     *
+     * TODO [组员C]:
+     *   需要实现 RESP 模式下从服务端加载数据的编排逻辑：
+     *     1. client.scan("*") 获取所有 key（该方法由组员B实现）
+     *     2. 对每个 key 调用 client.get(key) 获取值
+     *     3. 对每个 key 调用 client.ttl(key) 获取剩余 TTL
+     *     4. 组装为 CacheEntry 加入结果列表
+     *   依赖于组员B完成 CacheServerClient.scan() 接口和实现。
      */
     private List<CacheEntry> getAllEntries() {
         if (client instanceof MockCacheClient mock) {
             // Mock 模式：直接读本地存储
             return mock.getAllLocalEntries();
         }
-        // RESP 模式：待 SCAN 命令格式确认后实现
-        // TODO [组员C]: SCAN 格式确认后改为:
-        //   List<String> keys = client.scan("0", "*");
-        //   for (key : keys) { 逐个 GET 组装 CacheEntry }
+        // RESP 模式：通过 SCAN + GET 从服务端获取（待组员B完成SCAN后由组员C实现）
         return tableData.stream().toList();
     }
 }

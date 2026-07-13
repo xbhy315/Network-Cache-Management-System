@@ -143,11 +143,13 @@ public class MockCacheClient implements CacheServerClient {
     /**
      * SCAN — 返回所有匹配 pattern 的 key 列表。
      *
-     * 由于格式待第二组确认，当前实现为一次性返回全部匹配 key。
-     * TODO: 第二组确认游标格式后调整。
+     * TODO [组员B]: 第二组已确认 SCAN 格式（非游标式，一次性返回），
+     *   CacheServerClient 接口签名定为 `scan(String pattern)`。
+     *   待组员B在 RespCacheClient 中实现后，这里同步放开 @Override。
      */
-    // @Override — 待格式确认后放开
+    // @Override
     public List<String> scan(String cursor, String matchPattern) {
+        // II.2 暂用旧游标签名占位，待组员B统一接口后修改
         if (matchPattern == null || matchPattern.isEmpty() || "*".equals(matchPattern)) {
             return new ArrayList<>(allKeys);
         }

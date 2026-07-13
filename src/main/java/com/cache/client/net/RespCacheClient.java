@@ -180,20 +180,22 @@ public class RespCacheClient implements CacheServerClient {
     /**
      * SCAN — 遍历匹配模式的键列表。
      *
-     * TODO [第二组格式待确认]:
-     *   当前实现为占位，待第二组确认 SCAN 的 RESP 返回格式后实现。
-     *   标准 Redis SCAN 返回:
-     *     *2\r\n
-     *     $3\r\n23\r\n       ← 下一个游标
-     *     *N\r\nk1\r\nk2\r\n...  ← 本批 key 列表
+     * TODO [组员B]:
+     *   第二组已确认 SCAN 格式（非游标式，一次性返回全部匹配 key）：
+     *     SCAN [pattern] → *N\r\n$len1\r\nkey1\r\n$len2\r\nkey2\r\n...
+     *     SCAN（无参数） → *N\r\nkey1\r\nkey2\r\n...
+     *   实现参考：
+     *     1. CacheServerClient 接口签名定为 `List<String> scan(String pattern)`
+     *     2. 先放开接口注释，再将此方法的签名改为 `scan(String pattern)`
+     *     3. 用 expectArray("SCAN", pattern) 实现
+     *     4. pattern 为 null 或 "*" 时发 SCAN 无参数
+     *   完成后同步更新 MockCacheClient 的同名方法。
      */
-    // @Override — 待格式确认后放开
+    // @Override
     public List<String> scan(String cursor, String matchPattern) {
-        // TODO [组员B]: 待第二组确认 SCAN 格式后实现
-        // 预期实现:
-        //   RespResponse resp = execute("SCAN", cursor, "MATCH", matchPattern);
-        //   return expectArray(resp);  // 解析数组元素
-        throw new UnsupportedOperationException("SCAN not yet implemented - waiting for protocol confirmation");
+        // II.2 暂用旧游标签名占位，待放开接口后修改
+        throw new UnsupportedOperationException(
+                "SCAN not yet implemented - assigned to group member B");
     }
 
     // ================================================================
@@ -234,12 +236,6 @@ public class RespCacheClient implements CacheServerClient {
 
     @Override
     public long ttl(String key) {
-        // TODO [第二组格式待确认]:
-        //   标准 Redis TTL 返回:
-        //     :n    剩余 n 秒
-        //     :-1   key 存在但无过期
-        //     :-2   key 不存在
-        // 待第二组确认后实现
         RespResponse resp = execute("TTL", key);
         if (resp.isError()) return -2;
         return resp.asInteger();

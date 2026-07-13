@@ -62,12 +62,15 @@ public interface CacheServerClient {
     /**
      * SCAN — 遍历匹配模式的键列表。
      *
-     * TODO [第二组格式待确认]:
-     *   标准 RESP: *2\r\n$3\r\n23\r\n*N\r\nkey1\r\nkey2\r\n...
-     *   返回: (nextCursor, keys)
-     *   待第二组确认后调整返回类型和参数。
+     * TODO [组员B]:
+     *   第二组已确认 SCAN 格式（非游标式，一次性返回全部匹配 key）：
+     *     SCAN [pattern] → *N\r\n$len1\r\nkey1\r\n$len2\r\nkey2\r\n...
+     *   签名定为 `scan(String pattern)`。
+     *   实现时在 RespCacheClient 中用 expectArray("SCAN", pattern) 即可，
+     *   在 MockCacheClient 中从 allKeys 集合过滤。
+     *   当前接口暂不放开，待组员B实现后再取消注释。
      */
-    // List<String> scan(String cursor, String matchPattern);
+    // List<String> scan(String pattern);
 
     // ============ List 操作 ============
 
@@ -102,8 +105,7 @@ public interface CacheServerClient {
     /**
      * TTL — 查询键的剩余生存时间。
      *
-     * TODO [第二组格式待确认]:
-     *   标准 REDIS: "TTL key" → :seconds\r\n
+     * 格式已由第二组确认（标准 Redis 语义）：
      *   :n      剩余 n 秒
      *   :-1     key 存在但永不过期
      *   :-2     key 不存在
