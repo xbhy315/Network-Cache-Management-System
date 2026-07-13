@@ -17,7 +17,7 @@ import java.util.Optional;
  * [组员B] RespCacheClient — RESP 协议 TCP 实现。
  *
  * 负责：
- * - 通过 RESP 协议与第一组的 Linux 缓存服务端通信
+ * - 通过 RESP 协议与第二组的 Linux 缓存服务端通信
  * - 实现 CacheServerClient 接口的所有方法
  * - 使用 RespCodec 进行 RESP 编解码
  *
@@ -180,20 +180,15 @@ public class RespCacheClient implements CacheServerClient {
     /**
      * SCAN — 遍历匹配模式的键列表。
      *
-     * TODO [第一组格式待确认]:
-     *   当前实现为占位，待第一组确认 SCAN 的 RESP 返回格式后实现。
-     *   标准 Redis SCAN 返回:
-     *     *2\r\n
-     *     $3\r\n23\r\n       ← 下一个游标
-     *     *N\r\nk1\r\nk2\r\n...  ← 本批 key 列表
+     * 第二组已确认格式（非游标式，一次性返回全部匹配 key）。
+     * pattern 为 null / "" / "*" 时发送无参数 SCAN。
      */
-    // @Override — 待格式确认后放开
-    public List<String> scan(String cursor, String matchPattern) {
-        // TODO [组员B]: 待第一组确认 SCAN 格式后实现
-        // 预期实现:
-        //   RespResponse resp = execute("SCAN", cursor, "MATCH", matchPattern);
-        //   return expectArray(resp);  // 解析数组元素
-        throw new UnsupportedOperationException("SCAN not yet implemented - waiting for protocol confirmation");
+    @Override
+    public List<String> scan(String pattern) {
+        if (pattern == null || pattern.isEmpty() || pattern.equals("*")) {
+            return expectArray("SCAN");
+        }
+        return expectArray("SCAN", pattern);
     }
 
     // ================================================================
@@ -202,7 +197,7 @@ public class RespCacheClient implements CacheServerClient {
 
     @Override
     public int lpush(String key, String... values) {
-        String[] args = new String[values.length + 1];
+        String[] args = new String[values.length + 2];
         args[0] = "LPUSH";
         args[1] = key;
         System.arraycopy(values, 0, args, 2, values.length);
@@ -211,7 +206,7 @@ public class RespCacheClient implements CacheServerClient {
 
     @Override
     public int rpush(String key, String... values) {
-        String[] args = new String[values.length + 1];
+        String[] args = new String[values.length + 2];
         args[0] = "RPUSH";
         args[1] = key;
         System.arraycopy(values, 0, args, 2, values.length);
@@ -234,12 +229,6 @@ public class RespCacheClient implements CacheServerClient {
 
     @Override
     public long ttl(String key) {
-        // TODO [第一组格式待确认]:
-        //   标准 Redis TTL 返回:
-        //     :n    剩余 n 秒
-        //     :-1   key 存在但无过期
-        //     :-2   key 不存在
-        // 待第一组确认后实现
         RespResponse resp = execute("TTL", key);
         if (resp.isError()) return -2;
         return resp.asInteger();

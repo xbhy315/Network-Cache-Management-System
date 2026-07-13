@@ -10,7 +10,7 @@ import java.util.Optional;
  * 缓存服务端操作接口。
  *
  * UI 层依赖此接口而非具体实现，支持 Mock / RESP 双模式。
- * 对应第一组 Linux 缓存服务端支持的 RESP 协议命令。
+ * 对应第二组 Linux 缓存服务端支持的 RESP 协议命令。
  */
 public interface CacheServerClient {
 
@@ -62,12 +62,13 @@ public interface CacheServerClient {
     /**
      * SCAN — 遍历匹配模式的键列表。
      *
-     * TODO [第一组格式待确认]:
-     *   标准 RESP: *2\r\n$3\r\n23\r\n*N\r\nkey1\r\nkey2\r\n...
-     *   返回: (nextCursor, keys)
-     *   待第一组确认后调整返回类型和参数。
+     * 第二组已确认格式（非游标式，一次性返回全部匹配 key）：
+     *   SCAN [pattern] → *N\r\n$len1\r\nkey1\r\n$len2\r\nkey2\r\n...
+     *
+     * @param pattern 通配符模式（支持 *），null 或 "*" 返回所有 key
+     * @return 匹配的 key 列表
      */
-    // List<String> scan(String cursor, String matchPattern);
+    List<String> scan(String pattern);
 
     // ============ List 操作 ============
 
@@ -102,8 +103,7 @@ public interface CacheServerClient {
     /**
      * TTL — 查询键的剩余生存时间。
      *
-     * TODO [第一组格式待确认]:
-     *   标准 REDIS: "TTL key" → :seconds\r\n
+     * 格式已由第二组确认（标准 Redis 语义）：
      *   :n      剩余 n 秒
      *   :-1     key 存在但永不过期
      *   :-2     key 不存在

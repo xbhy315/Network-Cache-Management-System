@@ -27,18 +27,30 @@ import java.util.Optional;
  */
 public class MainController {
 
-    // 客户端实例 — 从 CacheClientApp 全局获取
-    private final CacheServerClient client = CacheClientApp.getClient();
+    // 客户端实例 — 通过 setClient() 注入（支持多客户端）
+    // 单客户端模式下，initialize() 会自动从 CacheClientApp 获取默认实例
+    private CacheServerClient client;
+    private String tabId = "default";
     private final ObservableList<CacheEntry> tableData = FXCollections.observableArrayList();
 
+    /**
+     * 设置当前标签页的客户端实例。
+     * TabPaneController 新建标签页时调用此方法注入独立的 client。
+     *
+     * @param tabId  标签页唯一标识，用于从注册表获取/释放资源
+     * @param client 该标签页绑定的独立客户端实例
+     */
+    public void setClient(String tabId, CacheServerClient client) {
+        this.tabId = tabId;
+        this.client = client;
+    }
+
     // ================================================================
-    // [组员B] FXML 注入 — 连接管理区域
+    // FXML 注入 — 连接管理区域
     // ================================================================
     @FXML private TextField serverHostField;
     @FXML private TextField serverPortField;
     @FXML private Label connectionStatusLabel;
-    // 多客户端面板（标签页）— 由组员B后续实现
-    // @FXML private TabPane multiClientTabPane;
 
     // ================================================================
     // [组员A] FXML 注入 — CRUD 输入区域
@@ -90,6 +102,11 @@ public class MainController {
 
     @FXML
     public void initialize() {
+        // 向后兼容：如果没有通过 setClient() 注入，使用默认客户端
+        if (client == null) {
+            this.client = CacheClientApp.getDefaultClient();
+        }
+
         // 绑定表格列
         keyColumn.setCellValueFactory(new PropertyValueFactory<>("key"));
         valueColumn.setCellValueFactory(new PropertyValueFactory<>("value"));
@@ -224,7 +241,7 @@ public class MainController {
 
     @FXML
     private void onClearAll() {
-        // 由于服务端不支持 FLUSHDB，从本地缓存逐条删除
+// 弹出确认对话框后再逐条删除（服务端不支持 FLUSHDB）
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
                 "Clear all entries? This cannot be undone.",
                 ButtonType.YES, ButtonType.NO);
@@ -409,17 +426,22 @@ public class MainController {
      * 获取全部缓存条目。
      *
      * Mock 模式：直接从 MockCacheClient 的本地存储获取。
-     * RESP 模式：通过 SCAN + GET 逐条获取（暂未实现，待 SCAN 格式确认）。
+     * RESP 模式：通过 SCAN + GET 逐条从服务端获取。
+     *
+     * TODO [组员C]:
+     *   需要实现 RESP 模式下从服务端加载数据的编排逻辑：
+     *     1. client.scan("*") 获取所有 key（该方法由组员B实现）
+     *     2. 对每个 key 调用 client.get(key) 获取值
+     *     3. 对每个 key 调用 client.ttl(key) 获取剩余 TTL
+     *     4. 组装为 CacheEntry 加入结果列表
+     *   依赖于组员B完成 CacheServerClient.scan() 接口和实现。
      */
     private List<CacheEntry> getAllEntries() {
         if (client instanceof MockCacheClient mock) {
             // Mock 模式：直接读本地存储
             return mock.getAllLocalEntries();
         }
-        // RESP 模式：待 SCAN 命令格式确认后实现
-        // TODO [组员C]: SCAN 格式确认后改为:
-        //   List<String> keys = client.scan("0", "*");
-        //   for (key : keys) { 逐个 GET 组装 CacheEntry }
+        // RESP 模式：通过 SCAN + GET 从服务端获取（待组员B完成SCAN后由组员C实现）
         return tableData.stream().toList();
     }
 }

@@ -1,9 +1,8 @@
 package com.cache.client.net.protocol;
 
-import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -51,68 +50,122 @@ public class RespCodec {
      * @throws IOException 网络读取错误
      */
     public static RespResponse decode(InputStream in) throws IOException {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+        return decodeValue(in);
+    }
 
-        // 读取首行，第一个字符决定类型
+    private static RespResponse decodeValue(InputStream in) throws IOException {
         int firstByte = in.read();
         if (firstByte == -1) {
             throw new IOException("Connection closed by server");
         }
 
         return switch (firstByte) {
-            case '+' -> decodeSimpleString(reader);
-            case '-' -> decodeError(reader);
-            case ':' -> decodeInteger(reader);
-            case '$' -> decodeBulkString(reader);
-            case '*' -> decodeArray(in, reader);
+            case '+' -> RespResponse.simpleString(readLine(in));
+            case '-' -> RespResponse.error(readLine(in));
+            case ':' -> RespResponse.integer(parseLong(readLine(in), "integer"));
+            case '$' -> decodeBulkString(in);
+            case '*' -> decodeArray(in);
             default -> throw new IOException("Unknown RESP type: " + (char) firstByte);
         };
     }
 
-    private static RespResponse decodeSimpleString(BufferedReader reader) throws IOException {
-        String line = reader.readLine();
-        if (line == null) throw new IOException("Unexpected end of stream");
-        return RespResponse.simpleString(line);
-    }
-
-    private static RespResponse decodeError(BufferedReader reader) throws IOException {
-        String line = reader.readLine();
-        if (line == null) throw new IOException("Unexpected end of stream");
-        return RespResponse.error(line);
-    }
-
-    private static RespResponse decodeInteger(BufferedReader reader) throws IOException {
-        String line = reader.readLine();
-        if (line == null) throw new IOException("Unexpected end of stream");
-        return RespResponse.integer(Long.parseLong(line));
-    }
-
-    private static RespResponse decodeBulkString(BufferedReader reader) throws IOException {
-        String line = reader.readLine();
-        if (line == null) throw new IOException("Unexpected end of stream");
-        int length = Integer.parseInt(line);
+    private static RespResponse decodeBulkString(InputStream in) throws IOException {
+        int length = parseInt(readLine(in), "bulk string length");
         if (length == -1) {
             return RespResponse.nullBulk();
         }
-        // 读取 length 字节数据 + 末尾 \r\n
-        char[] buf = new char[length];
-        int read = reader.read(buf, 0, length);
-        if (read != length) throw new IOException("Unexpected end of stream reading bulk string");
-        reader.read(); // \r
-        reader.read(); // \n
-        return RespResponse.bulkString(new String(buf));
+        if (length < -1) {
+            throw new IOException("Invalid bulk string length: " + length);
+        }
+
+        byte[] data = readExact(in, length, "bulk string");
+        expectCrLf(in);
+        return RespResponse.bulkString(new String(data, StandardCharsets.UTF_8));
     }
 
-    private static RespResponse decodeArray(InputStream in, BufferedReader reader) throws IOException {
-        String line = reader.readLine();
-        if (line == null) throw new IOException("Unexpected end of stream");
-        int count = Integer.parseInt(line);
+    private static RespResponse decodeArray(InputStream in) throws IOException {
+        int count = parseInt(readLine(in), "array length");
+        if (count == -1) {
+            return RespResponse.nullBulk();
+        }
+        if (count < -1) {
+            throw new IOException("Invalid array length: " + count);
+        }
+
         List<RespResponse> elements = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            // 对每个元素递归调用 decode（直接读 in 而非 reader，因为 reader 有缓冲可能多读）
-            elements.add(decode(in));
+            elements.add(decodeValue(in));
         }
         return RespResponse.array(elements);
+    }
+
+    private static String readLine(InputStream in) throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        while (true) {
+            int current = in.read();
+            if (current == -1) {
+                throw new IOException("Unexpected end of stream reading RESP line");
+            }
+            if (current == '\r') {
+                int next = in.read();
+                if (next == '\n') {
+                    return buffer.toString(StandardCharsets.UTF_8);
+                }
+                if (next == -1) {
+                    throw new IOException("Unexpected end of stream reading RESP line ending");
+                }
+                throw new IOException("Invalid RESP line ending");
+            }
+            if (current == '\n') {
+                throw new IOException("Invalid RESP line ending");
+            }
+            buffer.write(current);
+        }
+    }
+
+    private static byte[] readExact(InputStream in, int length, String valueName) throws IOException {
+        byte[] data = new byte[length];
+        int offset = 0;
+        while (offset < length) {
+            int read = in.read(data, offset, length - offset);
+            if (read == -1) {
+                throw new IOException("Unexpected end of stream reading " + valueName);
+            }
+            if (read == 0) {
+                int next = in.read();
+                if (next == -1) {
+                    throw new IOException("Unexpected end of stream reading " + valueName);
+                }
+                data[offset++] = (byte) next;
+            } else {
+                offset += read;
+            }
+        }
+        return data;
+    }
+
+    private static void expectCrLf(InputStream in) throws IOException {
+        int carriageReturn = in.read();
+        int lineFeed = in.read();
+        if (carriageReturn != '\r' || lineFeed != '\n') {
+            throw new IOException("Invalid RESP line ending");
+        }
+    }
+
+    private static int parseInt(String value, String description) throws IOException {
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            throw new IOException("Invalid RESP " + description + ": " + value, e);
+        }
+    }
+
+    private static long parseLong(String value, String description) throws IOException {
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            throw new IOException("Invalid RESP " + description + ": " + value, e);
+        }
     }
 
     // ================================================================
