@@ -17,9 +17,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * 测试分类：
  *   编码 6  + 简单字符串 2  + 错误 1  + 整数 3  + 批量字符串 3  + 数组 1
  *
- * 已知待补：
- *   shouldDecodeArray / shouldDecodeArrayOfBulkStrings
- *   — 依赖 RespCodec BufferedReader 修复（组员B），修后补回。
+ * TODO [组员B]:
+ *   数组解码测试（shouldDecodeArray / shouldDecodeArrayOfBulkStrings）暂缺。
+ *   原因：RespCodec.decode() 混用了 BufferedReader 和 InputStream，
+ *   BufferedReader 的缓冲会导致递归解码数组元素时 InputStream 数据丢失。
+ *   需要修复编解码器后再补回这两个测试。
  */
 class RespCodecTest {
 

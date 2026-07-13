@@ -181,19 +181,17 @@ public class RespCacheClient implements CacheServerClient {
      * SCAN — 遍历匹配模式的键列表。
      *
      * TODO [组员B]:
-     *   第二组已确认 SCAN 格式（非游标式，一次性返回全部匹配 key）：
-     *     SCAN [pattern] → *N\r\n$len1\r\nkey1\r\n$len2\r\nkey2\r\n...
-     *     SCAN（无参数） → *N\r\nkey1\r\nkey2\r\n...
-     *   实现参考：
-     *     1. CacheServerClient 接口签名定为 `List<String> scan(String pattern)`
-     *     2. 先放开接口注释，再将此方法的签名改为 `scan(String pattern)`
-     *     3. 用 expectArray("SCAN", pattern) 实现
-     *     4. pattern 为 null 或 "*" 时发 SCAN 无参数
-     *   完成后同步更新 MockCacheClient 的同名方法。
+     *   第二组已确认格式（非游标式，一次性返回全部匹配 key）。
+     *   用 expectArray("SCAN", pattern) 实现即可。
+     *   pattern 为 null / "" / "*" 时发 SCAN 无参数。
      */
-    // @Override
-    public List<String> scan(String cursor, String matchPattern) {
-        // II.2 暂用旧游标签名占位，待放开接口后修改
+    @Override
+    public List<String> scan(String pattern) {
+        // TODO [组员B]: 替换为:
+        //   if (pattern == null || pattern.isEmpty() || pattern.equals("*")) {
+        //       return expectArray("SCAN");
+        //   }
+        //   return expectArray("SCAN", pattern);
         throw new UnsupportedOperationException(
                 "SCAN not yet implemented - assigned to group member B");
     }

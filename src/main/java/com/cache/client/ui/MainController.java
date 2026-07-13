@@ -208,8 +208,7 @@ public class MainController {
 
     @FXML
     private void onClearAll() {
-        // TODO [组员A]: 弹出确认对话框
-        // 由于服务端不支持 FLUSHDB，从本地缓存逐条删除
+        // 弹出确认对话框后再逐条删除（服务端不支持 FLUSHDB）
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
                 "Clear all entries? This cannot be undone.",
                 ButtonType.YES, ButtonType.NO);
