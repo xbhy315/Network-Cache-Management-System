@@ -10,18 +10,9 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * RespCodec 编解码单元测试 — 16 个用例。
+ * RespCodec 编解码单元测试。
  *
  * 覆盖全部 5 种 RESP 响应类型 + 编码 + 边界情况。
- *
- * 测试分类：
- *   编码 6  + 简单字符串 2  + 错误 1  + 整数 3  + 批量字符串 3  + 数组 1
- *
- * TODO [组员B]:
- *   数组解码测试（shouldDecodeArray / shouldDecodeArrayOfBulkStrings）暂缺。
- *   原因：RespCodec.decode() 混用了 BufferedReader 和 InputStream，
- *   BufferedReader 的缓冲会导致递归解码数组元素时 InputStream 数据丢失。
- *   需要修复编解码器后再补回这两个测试。
  */
 class RespCodecTest {
 
@@ -159,6 +150,89 @@ class RespCodecTest {
         RespResponse result = decode("*0\r\n");
         assertEquals(RespResponse.Type.ARRAY, result.getType());
         assertTrue(result.asArray().isEmpty());
+    }
+
+    @Test
+    void shouldDecodeArray() throws Exception {
+        RespResponse result = decode("*2\r\n+OK\r\n:1\r\n");
+
+        assertEquals(RespResponse.Type.ARRAY, result.getType());
+        List<RespResponse> elements = result.asArray();
+        assertEquals(2, elements.size());
+        assertEquals(RespResponse.Type.SIMPLE_STRING, elements.get(0).getType());
+        assertEquals("OK", elements.get(0).asString());
+        assertEquals(RespResponse.Type.INTEGER, elements.get(1).getType());
+        assertEquals(1, elements.get(1).asInteger());
+    }
+
+    @Test
+    void shouldDecodeArrayOfBulkStrings() throws Exception {
+        String response = "*3\r\n"
+                + "$3\r\nfoo\r\n"
+                + "$3\r\nbar\r\n"
+                + "$3\r\nbaz\r\n";
+
+        RespResponse result = decode(response);
+        List<RespResponse> elements = result.asArray();
+
+        assertEquals(3, elements.size());
+        assertTrue(elements.stream()
+                .allMatch(element -> element.getType() == RespResponse.Type.BULK_STRING));
+        assertEquals(List.of("foo", "bar", "baz"),
+                elements.stream().map(RespResponse::asString).toList());
+    }
+
+    @Test
+    void shouldDecodeNullArray() throws Exception {
+        RespResponse result = decode("*-1\r\n");
+
+        assertEquals(RespResponse.Type.NULL, result.getType());
+        assertTrue(result.isNull());
+        assertNull(result.asArray());
+    }
+
+    @Test
+    void shouldDecodeNestedMixedArray() throws Exception {
+        String response = "*3\r\n"
+                + "+OK\r\n"
+                + ":2\r\n"
+                + "*2\r\n$3\r\nfoo\r\n$-1\r\n";
+
+        RespResponse result = decode(response);
+        List<RespResponse> elements = result.asArray();
+
+        assertEquals(3, elements.size());
+        assertEquals("OK", elements.get(0).asString());
+        assertEquals(2, elements.get(1).asInteger());
+        assertEquals(RespResponse.Type.ARRAY, elements.get(2).getType());
+        assertEquals("foo", elements.get(2).asArray().get(0).asString());
+        assertTrue(elements.get(2).asArray().get(1).isNull());
+    }
+
+    @Test
+    void shouldDecodeUtf8BulkStringByByteLength() throws Exception {
+        RespResponse result = decode("$6\r\n缓存\r\n");
+
+        assertEquals(RespResponse.Type.BULK_STRING, result.getType());
+        assertEquals("缓存", result.asString());
+    }
+
+    @Test
+    void shouldRejectInvalidLengths() {
+        assertThrows(java.io.IOException.class, () -> decode("$-2\r\n"));
+        assertThrows(java.io.IOException.class, () -> decode("*-2\r\n"));
+        assertThrows(java.io.IOException.class, () -> decode("$abc\r\n"));
+    }
+
+    @Test
+    void shouldRejectTruncatedBulkString() {
+        assertThrows(java.io.IOException.class, () -> decode("$5\r\nabc\r\n"));
+    }
+
+    @Test
+    void shouldRejectInvalidCrLf() {
+        assertThrows(java.io.IOException.class, () -> decode("+OK\n"));
+        assertThrows(java.io.IOException.class, () -> decode("$3\r\nfoo\n"));
     }
 
     // ================================================================
