@@ -180,20 +180,15 @@ public class RespCacheClient implements CacheServerClient {
     /**
      * SCAN — 遍历匹配模式的键列表。
      *
-     * TODO [组员B]:
-     *   第二组已确认格式（非游标式，一次性返回全部匹配 key）。
-     *   用 expectArray("SCAN", pattern) 实现即可。
-     *   pattern 为 null / "" / "*" 时发 SCAN 无参数。
+     * 第二组已确认格式（非游标式，一次性返回全部匹配 key）。
+     * pattern 为 null / "" / "*" 时发送无参数 SCAN。
      */
     @Override
     public List<String> scan(String pattern) {
-        // TODO [组员B]: 替换为:
-        //   if (pattern == null || pattern.isEmpty() || pattern.equals("*")) {
-        //       return expectArray("SCAN");
-        //   }
-        //   return expectArray("SCAN", pattern);
-        throw new UnsupportedOperationException(
-                "SCAN not yet implemented - assigned to group member B");
+        if (pattern == null || pattern.isEmpty() || pattern.equals("*")) {
+            return expectArray("SCAN");
+        }
+        return expectArray("SCAN", pattern);
     }
 
     // ================================================================
@@ -202,7 +197,7 @@ public class RespCacheClient implements CacheServerClient {
 
     @Override
     public int lpush(String key, String... values) {
-        String[] args = new String[values.length + 1];
+        String[] args = new String[values.length + 2];
         args[0] = "LPUSH";
         args[1] = key;
         System.arraycopy(values, 0, args, 2, values.length);
@@ -211,7 +206,7 @@ public class RespCacheClient implements CacheServerClient {
 
     @Override
     public int rpush(String key, String... values) {
-        String[] args = new String[values.length + 1];
+        String[] args = new String[values.length + 2];
         args[0] = "RPUSH";
         args[1] = key;
         System.arraycopy(values, 0, args, 2, values.length);
