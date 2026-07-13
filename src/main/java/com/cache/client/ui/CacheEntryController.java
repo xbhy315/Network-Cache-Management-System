@@ -1,7 +1,6 @@
 package com.cache.client.ui;
 
 import javafx.fxml.FXML;
-import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 
 /**
@@ -15,7 +14,7 @@ import javafx.scene.control.TextField;
 public class CacheEntryController {
 
     @FXML private TextField keyField;
-    @FXML private TextArea valueField;
+    @FXML private TextField valueField;
     @FXML private TextField ttlField;
 
     public String getKey() {

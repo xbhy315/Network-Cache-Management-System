@@ -53,11 +53,8 @@ public class MainController {
     @FXML private Label connectionStatusLabel;
 
     // ================================================================
-    // [组员A] FXML 注入 — CRUD 输入区域
+    // [组员A] FXML 注入 — CRUD 操作区域
     // ================================================================
-    @FXML private TextField keyField;
-    @FXML private TextField valueField;
-    @FXML private TextField ttlField;
 
     // ================================================================
     // [组员C] FXML 注入 — 数据管理区域
@@ -302,7 +299,11 @@ public class MainController {
         String key = listKeyField.getText().trim();
         if (key.isEmpty()) return;
         List<String> items = client.lrange(key, 0, -1);
-        listResultView.setItems(FXCollections.observableArrayList(items));
+        if (items.isEmpty()) {
+            listResultView.setItems(FXCollections.observableArrayList("[empty]"));
+        } else {
+            listResultView.setItems(FXCollections.observableArrayList(items));
+        }
         listLengthLabel.setText("Length: " + items.size());
     }
 

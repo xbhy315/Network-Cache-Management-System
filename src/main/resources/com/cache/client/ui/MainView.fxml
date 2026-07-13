@@ -31,9 +31,7 @@
          [组员A] 区域2: CRUD + List 操作（双行）
          ============================================================ -->
     <HBox spacing="10" alignment="CENTER_LEFT">
-        <TextField fx:id="keyField" promptText="Key" prefWidth="200"/>
-        <TextField fx:id="valueField" promptText="Value" prefWidth="300"/>
-        <TextField fx:id="ttlField" promptText="TTL (s)" prefWidth="100"/>
+        <Label text="Key Op:" style="-fx-font-weight: bold;"/>
         <Button text="Add / Update" onAction="#onAdd"/>
         <Button text="Delete" onAction="#onDelete"/>
         <Button text="Clear All" onAction="#onClearAll"/>
