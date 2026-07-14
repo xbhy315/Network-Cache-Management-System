@@ -34,6 +34,8 @@ public class MainController {
     private CacheServerClient client;
     private String tabId = "default";
     private final ObservableList<CacheEntry> tableData = FXCollections.observableArrayList();
+    private String connectedHost;
+    private int connectedPort;
 
     /**
      * 设置当前标签页的客户端实例。
@@ -151,6 +153,18 @@ public class MainController {
 
     @FXML
     private void onConnect() {
+        // 已连接时弹出提示，阻止重复连接
+        if (client.isConnected()) {
+            Alert alert = new Alert(Alert.AlertType.WARNING,
+                    "This client is already connected to " + connectedHost + ":" + connectedPort
+                            + ".\nDisconnect first before connecting to a new server.",
+                    ButtonType.OK);
+            alert.setTitle("Already connected");
+            alert.setHeaderText(null);
+            alert.showAndWait();
+            return;
+        }
+
         String host = serverHostField.getText().trim();
         if (host.isEmpty()) host = CacheClientApp.getConfig().getDefaultHost();
         int port = CacheClientApp.getConfig().getDefaultPort();
@@ -160,6 +174,8 @@ public class MainController {
 
         try {
             client.connect(host, port);
+            connectedHost = host;
+            connectedPort = port;
             connectionStatusLabel.setText("Connected to " + host + ":" + port);
             connectionStatusLabel.setStyle("-fx-text-fill: green;");
         } catch (Exception e) {
@@ -171,6 +187,8 @@ public class MainController {
     @FXML
     private void onDisconnect() {
         client.disconnect();
+        connectedHost = null;
+        connectedPort = 0;
         connectionStatusLabel.setText("Disconnected");
         connectionStatusLabel.setStyle("-fx-text-fill: gray;");
     }
@@ -212,6 +230,9 @@ public class MainController {
                 long ttl = controller.getTtl();
                 if (key.isEmpty() || value.isEmpty()) return;
 
+                // 检查 key 是否已是 LIST 类型，防止覆盖
+                if (isExistingListKey(key)) return;
+
                 client.set(key, value, ttl);
                 refreshTable();
                 updateStatusBar();
@@ -219,6 +240,32 @@ public class MainController {
         } catch (IOException e) {
             statusLabel.setText("Failed to open dialog: " + e.getMessage());
         }
+    }
+
+    /**
+     * 检查 key 在本地表格中是否已标记为 LIST 类型。
+     * 如果是，弹出警告并返回 true，阻止覆盖；否则返回 false。
+     */
+    private boolean isExistingListKey(String key) {
+        for (CacheEntry entry : tableData) {
+            if (entry.getKey().equals(key) && entry.getType() == CacheEntry.EntryType.LIST) {
+                Alert warn = new Alert(Alert.AlertType.WARNING,
+                        "Key \"" + key + "\" already exists as a LIST.\n"
+                                + "Setting a string value will overwrite the list data.\n\n"
+                                + "Delete the key first, or use a different key name.",
+                        ButtonType.OK);
+                warn.showAndWait();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void showError(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR, message, ButtonType.OK);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.showAndWait();
     }
 
     @FXML
@@ -265,10 +312,14 @@ public class MainController {
         String key = listKeyField.getText().trim();
         String value = listValueField.getText().trim();
         if (key.isEmpty() || value.isEmpty()) return;
-        int len = client.lpush(key, value);
-        refreshListDisplay(key);
-        listLengthLabel.setText("Length: " + len);
-        refreshTable();
+        try {
+            int len = client.lpush(key, value);
+            refreshListDisplay(key);
+            listLengthLabel.setText("Length: " + len);
+            refreshTable();
+        } catch (Exception e) {
+            showError("LPUSH failed", e.getMessage());
+        }
     }
 
     @FXML
@@ -276,37 +327,49 @@ public class MainController {
         String key = listKeyField.getText().trim();
         String value = listValueField.getText().trim();
         if (key.isEmpty() || value.isEmpty()) return;
-        int len = client.rpush(key, value);
-        refreshListDisplay(key);
-        listLengthLabel.setText("Length: " + len);
-        refreshTable();
+        try {
+            int len = client.rpush(key, value);
+            refreshListDisplay(key);
+            listLengthLabel.setText("Length: " + len);
+            refreshTable();
+        } catch (Exception e) {
+            showError("RPUSH failed", e.getMessage());
+        }
     }
 
     @FXML
     private void onLpop() {
         String key = listKeyField.getText().trim();
         if (key.isEmpty()) return;
-        String value = client.lpop(key);
-        if (value != null) {
-            listResultView.getItems().add(0, "POP: " + value);
-            refreshListDisplay(key);
-        } else {
-            listResultView.getItems().add(0, "POP: (empty)");
+        try {
+            String value = client.lpop(key);
+            if (value != null) {
+                listResultView.getItems().add(0, "POP: " + value);
+                refreshListDisplay(key);
+            } else {
+                listResultView.getItems().add(0, "POP: (empty)");
+            }
+            refreshTable();
+        } catch (Exception e) {
+            showError("LPOP failed", e.getMessage());
         }
-        refreshTable();
     }
 
     @FXML
     private void onLrange() {
         String key = listKeyField.getText().trim();
         if (key.isEmpty()) return;
-        List<String> items = client.lrange(key, 0, -1);
-        if (items.isEmpty()) {
-            listResultView.setItems(FXCollections.observableArrayList("[empty]"));
-        } else {
-            listResultView.setItems(FXCollections.observableArrayList(items));
+        try {
+            List<String> items = client.lrange(key, 0, -1);
+            if (items.isEmpty()) {
+                listResultView.setItems(FXCollections.observableArrayList("[empty]"));
+            } else {
+                listResultView.setItems(FXCollections.observableArrayList(items));
+            }
+            listLengthLabel.setText("Length: " + items.size());
+        } catch (Exception e) {
+            showError("LRANGE failed", e.getMessage());
         }
-        listLengthLabel.setText("Length: " + items.size());
     }
 
     /** 刷新 List 面板的显示。 */
@@ -426,6 +489,10 @@ public class MainController {
         if (client instanceof MockCacheClient mock) {
             // Mock 模式：直接读本地存储
             return mock.getAllLocalEntries();
+        }
+        // RESP 模式：未连接时返回空列表，避免 NPE
+        if (!client.isConnected()) {
+            return List.of();
         }
         return CacheEntryLoader.load(client);
     }

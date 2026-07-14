@@ -76,6 +76,9 @@ public class RespCacheClient implements CacheServerClient {
      */
     private RespResponse execute(String... args) {
         try {
+            if (out == null) {
+                throw new IOException("Client not connected — call connect() first");
+            }
             byte[] request = RespCodec.encode(args);
             out.write(request);
             out.flush();
@@ -154,8 +157,11 @@ public class RespCacheClient implements CacheServerClient {
         RespResponse resp = execute("GET", key);
         if (resp.isError()) {
             String error = resp.getError();
-            if (error != null && error.toUpperCase(Locale.ROOT).contains("WRONGTYPE")) {
-                return Optional.empty();
+            if (error != null) {
+                String upper = error.toUpperCase(Locale.ROOT);
+                if (upper.contains("WRONGTYPE") || upper.contains("WRONG TYPE")) {
+                    return Optional.empty();
+                }
             }
             throw new RuntimeException("Command failed: " + error);
         }
