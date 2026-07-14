@@ -11,6 +11,7 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -151,6 +152,13 @@ public class RespCacheClient implements CacheServerClient {
     @Override
     public Optional<String> get(String key) {
         RespResponse resp = execute("GET", key);
+        if (resp.isError()) {
+            String error = resp.getError();
+            if (error != null && error.toUpperCase(Locale.ROOT).contains("WRONGTYPE")) {
+                return Optional.empty();
+            }
+            throw new RuntimeException("Command failed: " + error);
+        }
         if (resp.isNull()) return Optional.empty();
         return Optional.ofNullable(resp.asString());
     }
@@ -229,8 +237,6 @@ public class RespCacheClient implements CacheServerClient {
 
     @Override
     public long ttl(String key) {
-        RespResponse resp = execute("TTL", key);
-        if (resp.isError()) return -2;
-        return resp.asInteger();
+        return expectInteger("TTL", key);
     }
 }

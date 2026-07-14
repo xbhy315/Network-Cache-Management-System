@@ -4,7 +4,9 @@ import com.cache.client.CacheClientApp;
 import com.cache.client.model.CacheEntry;
 import com.cache.client.net.CacheServerClient;
 import com.cache.client.net.MockCacheClient;
+import com.cache.client.util.CacheEntryLoader;
 import com.cache.client.util.ExportUtil;
+import com.cache.client.util.KeyPatternMatcher;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
@@ -340,21 +342,9 @@ public class MainController {
 
     @FXML
     private void onSearch() {
-        // 改为本地过滤 — 不再依赖服务端的 KEYS 命令
-        String pattern = searchField.getText().trim().toLowerCase();
-        if (pattern.isEmpty()) return;
-
-        // 获取全部本地条目
+        String pattern = searchField.getText();
         List<CacheEntry> all = getAllEntries();
-        if (pattern.equals("*")) {
-            tableData.setAll(all);
-        } else {
-            // 简单通配符匹配：* 表示任意字符
-            String regex = "\\Q" + pattern.replace("*", "\\E.*\\Q") + "\\E";
-            tableData.setAll(all.stream()
-                    .filter(e -> e.getKey().matches(regex))
-                    .toList());
-        }
+        tableData.setAll(KeyPatternMatcher.filter(all, pattern));
         tableView.setItems(tableData);
         statusLabel.setText("Filtered: " + tableData.size() + " / " + all.size());
     }
@@ -429,20 +419,14 @@ public class MainController {
      * Mock 模式：直接从 MockCacheClient 的本地存储获取。
      * RESP 模式：通过 SCAN + GET 逐条从服务端获取。
      *
-     * TODO [组员C]:
-     *   需要实现 RESP 模式下从服务端加载数据的编排逻辑：
-     *     1. client.scan("*") 获取所有 key（该方法由组员B实现）
-     *     2. 对每个 key 调用 client.get(key) 获取值
-     *     3. 对每个 key 调用 client.ttl(key) 获取剩余 TTL
-     *     4. 组装为 CacheEntry 加入结果列表
-     *   依赖于组员B完成 CacheServerClient.scan() 接口和实现。
+     * RESP 服务端没有 TYPE 命令，因此加载器先尝试 GET，
+     * 类型不匹配时再通过 LRANGE 构建 LIST 条目。
      */
     private List<CacheEntry> getAllEntries() {
         if (client instanceof MockCacheClient mock) {
             // Mock 模式：直接读本地存储
             return mock.getAllLocalEntries();
         }
-        // RESP 模式：通过 SCAN + GET 从服务端获取（待组员B完成SCAN后由组员C实现）
-        return tableData.stream().toList();
+        return CacheEntryLoader.load(client);
     }
 }
