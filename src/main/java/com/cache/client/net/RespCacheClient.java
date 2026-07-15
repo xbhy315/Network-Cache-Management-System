@@ -28,7 +28,14 @@ public class RespCacheClient implements CacheServerClient {
     private Socket socket;
     private InputStream in;
     private OutputStream out;
-    private boolean connected;
+    private volatile boolean connected;
+
+    /** 上次成功连接的地址 — 用于自动重连。 */
+    private String lastHost;
+    private int lastPort;
+
+    /** 串行化 socket 操作，防止多线程并发读写。 */
+    private final Object lock = new Object();
 
     // ================================================================
     // 连接管理
@@ -36,28 +43,38 @@ public class RespCacheClient implements CacheServerClient {
 
     @Override
     public void connect(String host, int port) {
-        try {
-            int timeout = CacheClientApp.getConfig().getConnectTimeout();
-            socket = new Socket();
-            socket.connect(new java.net.InetSocketAddress(host, port), timeout);
-            socket.setSoTimeout(timeout);
-            in = socket.getInputStream();
-            out = socket.getOutputStream();
-            connected = true;
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to connect to " + host + ":" + port, e);
+        synchronized (lock) {
+            try {
+                int timeout = CacheClientApp.getConfig().getConnectTimeout();
+                socket = new Socket();
+                socket.connect(new java.net.InetSocketAddress(host, port), timeout);
+                socket.setSoTimeout(timeout);
+                in = socket.getInputStream();
+                out = socket.getOutputStream();
+                connected = true;
+                lastHost = host;
+                lastPort = port;
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to connect to " + host + ":" + port, e);
+            }
         }
     }
 
     @Override
     public void disconnect() {
-        try {
-            connected = false;
-            if (in != null) in.close();
-            if (out != null) out.close();
-            if (socket != null && !socket.isClosed()) socket.close();
-        } catch (IOException e) {
-            // 忽略关闭时的异常
+        synchronized (lock) {
+            try {
+                connected = false;
+                if (in != null) in.close();
+                if (out != null) out.close();
+                if (socket != null && !socket.isClosed()) socket.close();
+            } catch (IOException e) {
+                // 忽略关闭时的异常
+            } finally {
+                in = null;
+                out = null;
+                socket = null;
+            }
         }
     }
 
@@ -72,8 +89,11 @@ public class RespCacheClient implements CacheServerClient {
 
     /**
      * 发送 RESP 请求并返回解码后的响应。
+     * 线程安全：通过 lock 串行化 socket 操作。
+     * 断线检测：捕获 IOException 时自动标记 connected=false。
      */
     private RespResponse execute(String... args) {
+<<<<<<< Updated upstream
         try {
             byte[] request = RespCodec.encode(args);
             out.write(request);
@@ -81,6 +101,21 @@ public class RespCacheClient implements CacheServerClient {
             return RespCodec.decode(in);
         } catch (IOException e) {
             throw new RuntimeException("RESP command failed: " + String.join(" ", args), e);
+=======
+        synchronized (lock) {
+            try {
+                if (out == null) {
+                    throw new IOException("Client not connected — call connect() first");
+                }
+                byte[] request = RespCodec.encode(args);
+                out.write(request);
+                out.flush();
+                return RespCodec.decode(in);
+            } catch (IOException e) {
+                connected = false;
+                throw new RuntimeException("RESP command failed: " + String.join(" ", args), e);
+            }
+>>>>>>> Stashed changes
         }
     }
 
@@ -243,5 +278,31 @@ public class RespCacheClient implements CacheServerClient {
         RespResponse resp = execute("TTL", key);
         if (resp.isError()) return -2;
         return resp.asInteger();
+    }
+
+    // ================================================================
+    // Reconnect
+    // ================================================================
+
+    @Override
+    public boolean reconnect() {
+        if (lastHost == null) return false;
+        try {
+            disconnect(); // 先关闭旧 socket，防止连接泄漏
+            connect(lastHost, lastPort);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @Override
+    public String getLastHost() {
+        return lastHost;
+    }
+
+    @Override
+    public int getLastPort() {
+        return lastPort;
     }
 }

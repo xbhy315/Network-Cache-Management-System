@@ -5,18 +5,28 @@ import com.cache.client.model.CacheEntry;
 import com.cache.client.net.CacheServerClient;
 import com.cache.client.net.MockCacheClient;
 import com.cache.client.util.ExportUtil;
+<<<<<<< Updated upstream
+=======
+import com.cache.client.util.KeyPatternMatcher;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+>>>>>>> Stashed changes
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.stage.FileChooser;
+import javafx.util.Duration;
 
 import java.io.File;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.Callable;
+import java.util.function.Consumer;
 
 /**
  * 主界面控制器。
@@ -31,6 +41,12 @@ public class MainController {
     private CacheServerClient client;
     private String tabId = "default";
     private final ObservableList<CacheEntry> tableData = FXCollections.observableArrayList();
+<<<<<<< Updated upstream
+=======
+    private String connectedHost;
+    private int connectedPort;
+    private Timeline heartbeat;
+>>>>>>> Stashed changes
 
     /**
      * 设置当前标签页的客户端实例。
@@ -75,6 +91,7 @@ public class MainController {
     // ================================================================
     @FXML private TextField listKeyField;
     @FXML private TextField listValueField;
+    @FXML private TextField listIndexField;
     @FXML private ListView<String> listResultView;
     @FXML private Label listLengthLabel;
 
@@ -115,15 +132,153 @@ public class MainController {
         // typeColumn — 显示数据类型（STRING / LIST）
         typeColumn.setCellValueFactory(new PropertyValueFactory<>("type"));
 
+<<<<<<< Updated upstream
         // statusColumn — 用于显示"正常/已过期/即将过期"状态
         // TODO [组员A]: 用自定义 cellFactory 显示条目状态
         // TTL > 60s → "正常"
         // TTL 0~60s → "即将过期"
         // TTL = 0  → "已过期"
         // LIST 类型 → "[N items]"
+=======
+        // statusColumn — 用自定义 cellFactory 显示条目状态
+        statusColumn.setCellValueFactory(new PropertyValueFactory<>("key"));
+        statusColumn.setCellFactory(col -> new TableCell<CacheEntry, String>() {
+            @Override
+            protected void updateItem(String text, boolean empty) {
+                super.updateItem(text, empty);
+                CacheEntry entry = getTableRow().getItem();
+                if (empty || entry == null) {
+                    setText(null);
+                    return;
+                }
+                if (entry.getType() == CacheEntry.EntryType.LIST) {
+                    setText("[" + entry.getListLength() + " items]");
+                } else {
+                    long remaining = entry.getRemainingTtl();
+                    if (remaining < 0) {
+                        setText("永不过期");
+                    } else if (remaining == 0) {
+                        setText("已过期");
+                    } else if (remaining <= 60) {
+                        setText("即将过期");
+                    } else {
+                        setText("正常");
+                    }
+                }
+            }
+        });
+>>>>>>> Stashed changes
+
+        // 选中表格中的 LIST 行时自动填充 List Key 输入框
+        tableView.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
+            if (selected != null && selected.getType() == CacheEntry.EntryType.LIST) {
+                listKeyField.setText(selected.getKey());
+            }
+        });
 
         refreshTable();
         updateStatusBar();
+    }
+
+    // ================================================================
+    // 异步执行辅助
+    // ================================================================
+
+    /**
+     * 在后台线程执行网络操作，操作完成后在 JavaFX 线程回调更新 UI。
+     * 网络操作失败时自动更新连接状态并弹出错误提示。
+     */
+    private <T> void runAsync(Callable<T> callable, Consumer<T> onSuccess, String errorTitle) {
+        Task<T> task = new Task<>() {
+            @Override
+            protected T call() throws Exception {
+                return callable.call();
+            }
+        };
+        task.setOnSucceeded(e -> {
+            if (onSuccess != null) onSuccess.accept(task.getValue());
+        });
+        task.setOnFailed(e -> {
+            Throwable ex = task.getException();
+            String msg = ex != null ? ex.getMessage() : "Unknown error";
+            if (!client.isConnected()) {
+                connectionStatusLabel.setText("Connection lost: " + msg);
+                connectionStatusLabel.setStyle("-fx-text-fill: red;");
+            }
+            if (errorTitle != null) {
+                showError(errorTitle, msg);
+            }
+        });
+        Thread t = new Thread(task);
+        t.setDaemon(true);
+        t.start();
+    }
+
+    // ================================================================
+    // 心跳检测 + 自动重连
+    // ================================================================
+
+    /** 启动定时心跳（每 5 秒检测连接状态 + 自动重连）。 */
+    private void startHeartbeat() {
+        if (heartbeat != null) heartbeat.stop();
+        heartbeat = new Timeline(new KeyFrame(Duration.seconds(5), e -> heartbeatTick()));
+        heartbeat.setCycleCount(Timeline.INDEFINITE);
+        heartbeat.play();
+    }
+
+    private void stopHeartbeat() {
+        if (heartbeat != null) {
+            heartbeat.stop();
+            heartbeat = null;
+        }
+    }
+
+    /** 单次心跳：ping 检测 → 断开时自动重连。 */
+    private void heartbeatTick() {
+        if (client == null || connectedHost == null) return;
+
+        runAsync(() -> {
+            if (client.isConnected()) {
+                client.ping();
+                return true; // 连接正常
+            }
+            return false;   // 已断开
+        }, ok -> {
+            if (ok) {
+                connectionStatusLabel.setText("Connected to " + connectedHost + ":" + connectedPort);
+                connectionStatusLabel.setStyle("-fx-text-fill: green;");
+            }
+        }, null); // 心跳失败不弹错误弹窗
+
+        // 断线自动重连（运行在后台线程，不弹任何对话框）
+        if (!client.isConnected() && connectedHost != null) {
+            runAsync(() -> client.reconnect(), ok -> {
+                if (ok) {
+                    connectionStatusLabel.setText("Reconnected to " + connectedHost + ":" + connectedPort);
+                    connectionStatusLabel.setStyle("-fx-text-fill: green;");
+                }
+            }, null);
+        }
+    }
+
+    // ================================================================
+    // 异步刷新方法
+    // ================================================================
+
+    /** 后台刷新条目列表并更新表格。 */
+    private void refreshTableAsync() {
+        runAsync(this::getAllEntries, entries -> {
+            tableData.setAll(entries);
+            tableView.setItems(tableData);
+            updateStatusBar();
+        }, "Refresh failed");
+    }
+
+    /** 后台刷新 List 面板展示。 */
+    private void refreshListDisplayAsync(String key) {
+        runAsync(() -> client.lrange(key, 0, -1), items -> {
+            listResultView.setItems(FXCollections.observableArrayList(items));
+        }, "Refresh list failed");
     }
 
     // ================================================================
@@ -139,18 +294,30 @@ public class MainController {
             port = Integer.parseInt(serverPortField.getText().trim());
         } catch (NumberFormatException ignored) {}
 
+<<<<<<< Updated upstream
         try {
             client.connect(host, port);
             connectionStatusLabel.setText("Connected to " + host + ":" + port);
+=======
+        final String connectHost = host;
+        final int connectPort = port;
+
+        runAsync(() -> {
+            client.connect(connectHost, connectPort);
+            return true;
+        }, ok -> {
+            connectedHost = connectHost;
+            connectedPort = connectPort;
+            connectionStatusLabel.setText("Connected to " + connectHost + ":" + connectPort);
+>>>>>>> Stashed changes
             connectionStatusLabel.setStyle("-fx-text-fill: green;");
-        } catch (Exception e) {
-            connectionStatusLabel.setText("Connection failed: " + e.getMessage());
-            connectionStatusLabel.setStyle("-fx-text-fill: red;");
-        }
+            startHeartbeat();
+        }, "Connection failed");
     }
 
     @FXML
     private void onDisconnect() {
+        stopHeartbeat();
         client.disconnect();
         connectionStatusLabel.setText("Disconnected");
         connectionStatusLabel.setStyle("-fx-text-fill: gray;");
@@ -162,14 +329,10 @@ public class MainController {
 
     @FXML
     private void onPing() {
-        try {
-            String result = client.ping();
+        runAsync(() -> client.ping(), result -> {
             pingResultLabel.setText(result);
             pingResultLabel.setStyle("-fx-text-fill: green;");
-        } catch (Exception e) {
-            pingResultLabel.setText("Error: " + e.getMessage());
-            pingResultLabel.setStyle("-fx-text-fill: red;");
-        }
+        }, "PING failed");
     }
 
     // ================================================================
@@ -187,40 +350,111 @@ public class MainController {
         } catch (NumberFormatException ignored) {}
         if (key.isEmpty() || value.isEmpty()) return;
 
+<<<<<<< Updated upstream
         client.set(key, value, ttl);
         refreshTable();
         updateStatusBar();
         keyField.clear();
         valueField.clear();
         ttlField.clear();
+=======
+            Dialog<ButtonType> dialog = new Dialog<>();
+            dialog.setDialogPane(dialogPane);
+
+            Optional<ButtonType> result = dialog.showAndWait();
+            if (result.isPresent() && result.get() == ButtonType.OK) {
+                String key = controller.getKey();
+                String value = controller.getValue();
+                long ttl = controller.getTtl();
+                if (key.isEmpty() || value.isEmpty()) return;
+
+                // 检查 key 是否已是 LIST 类型，防止覆盖
+                if (isExistingListKey(key)) return;
+
+                runAsync(() -> {
+                    client.set(key, value, ttl);
+                    return true;
+                }, ok -> refreshTableAsync(), "Add failed");
+            }
+        } catch (IOException e) {
+            statusLabel.setText("Failed to open dialog: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 检查 key 在本地表格中是否已标记为 LIST 类型。
+     * 如果是，弹出警告并返回 true，阻止覆盖；否则返回 false。
+     */
+    private boolean isExistingListKey(String key) {
+        for (CacheEntry entry : tableData) {
+            if (entry.getKey().equals(key) && entry.getType() == CacheEntry.EntryType.LIST) {
+                Alert warn = new Alert(Alert.AlertType.WARNING,
+                        "Key \"" + key + "\" already exists as a LIST.\n"
+                                + "Setting a string value will overwrite the list data.\n\n"
+                                + "Delete the key first, or use a different key name.",
+                        ButtonType.OK);
+                warn.showAndWait();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void showError(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR, message, ButtonType.OK);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.showAndWait();
+>>>>>>> Stashed changes
     }
 
     @FXML
     private void onDelete() {
         // TODO [组员A]: 确认对话框后再删除
         CacheEntry selected = tableView.getSelectionModel().getSelectedItem();
+<<<<<<< Updated upstream
         if (selected != null) {
             client.del(selected.getKey());
             refreshTable();
             updateStatusBar();
         }
+=======
+        if (selected == null) return;
+
+        String deleteKey = selected.getKey();
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "Delete entry \"" + deleteKey + "\"?",
+                ButtonType.YES, ButtonType.NO);
+        confirm.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.YES) {
+                runAsync(() -> {
+                    client.del(deleteKey);
+                    return true;
+                }, ok -> refreshTableAsync(), "Delete failed");
+            }
+        });
+>>>>>>> Stashed changes
     }
 
     @FXML
     private void onClearAll() {
+<<<<<<< Updated upstream
         // TODO [组员A]: 弹出确认对话框
         // 由于服务端不支持 FLUSHDB，从本地缓存逐条删除
+=======
+        // 弹出确认对话框后再逐条删除（服务端不支持 FLUSHDB）
+>>>>>>> Stashed changes
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
                 "Clear all entries? This cannot be undone.",
                 ButtonType.YES, ButtonType.NO);
         confirm.showAndWait().ifPresent(response -> {
             if (response == ButtonType.YES) {
-                // 从表格中获取所有 key 并逐个删除
-                for (CacheEntry entry : tableData) {
-                    client.del(entry.getKey());
-                }
-                refreshTable();
-                updateStatusBar();
+                runAsync(() -> {
+                    for (CacheEntry entry : tableData) {
+                        client.del(entry.getKey());
+                    }
+                    return true;
+                }, ok -> refreshTableAsync(), "Clear all failed");
             }
         });
     }
@@ -234,10 +468,22 @@ public class MainController {
         String key = listKeyField.getText().trim();
         String value = listValueField.getText().trim();
         if (key.isEmpty() || value.isEmpty()) return;
+<<<<<<< Updated upstream
         int len = client.lpush(key, value);
         refreshListDisplay(key);
         listLengthLabel.setText("Length: " + len);
         refreshTable();
+=======
+        runAsync(() -> {
+            int len = client.lpush(key, value);
+            List<String> items = client.lrange(key, 0, -1);
+            return new Object[]{len, items};
+        }, result -> {
+            listResultView.setItems(FXCollections.observableArrayList((List<String>) result[1]));
+            listLengthLabel.setText("Length: " + (int) result[0]);
+            refreshTableAsync();
+        }, "LPUSH failed");
+>>>>>>> Stashed changes
     }
 
     @FXML
@@ -245,16 +491,29 @@ public class MainController {
         String key = listKeyField.getText().trim();
         String value = listValueField.getText().trim();
         if (key.isEmpty() || value.isEmpty()) return;
+<<<<<<< Updated upstream
         int len = client.rpush(key, value);
         refreshListDisplay(key);
         listLengthLabel.setText("Length: " + len);
         refreshTable();
+=======
+        runAsync(() -> {
+            int len = client.rpush(key, value);
+            List<String> items = client.lrange(key, 0, -1);
+            return new Object[]{len, items};
+        }, result -> {
+            listResultView.setItems(FXCollections.observableArrayList((List<String>) result[1]));
+            listLengthLabel.setText("Length: " + (int) result[0]);
+            refreshTableAsync();
+        }, "RPUSH failed");
+>>>>>>> Stashed changes
     }
 
     @FXML
     private void onLpop() {
         String key = listKeyField.getText().trim();
         if (key.isEmpty()) return;
+<<<<<<< Updated upstream
         String value = client.lpop(key);
         if (value != null) {
             listResultView.getItems().add(0, "POP: " + value);
@@ -263,21 +522,114 @@ public class MainController {
             listResultView.getItems().add(0, "POP: (empty)");
         }
         refreshTable();
+=======
+        runAsync(() -> {
+            String value = client.lpop(key);
+            List<String> items = (value != null) ? client.lrange(key, 0, -1) : List.of();
+            return new Object[]{value, items};
+        }, result -> {
+            @SuppressWarnings("unchecked")
+            List<String> items = (List<String>) result[1];
+            listResultView.setItems(FXCollections.observableArrayList(items));
+            if (result[0] == null) {
+                listResultView.getItems().add(0, "POP: (empty)");
+            }
+            refreshTableAsync();
+        }, "LPOP failed");
+>>>>>>> Stashed changes
     }
 
     @FXML
     private void onLrange() {
         String key = listKeyField.getText().trim();
         if (key.isEmpty()) return;
+<<<<<<< Updated upstream
         List<String> items = client.lrange(key, 0, -1);
         listResultView.setItems(FXCollections.observableArrayList(items));
         listLengthLabel.setText("Length: " + items.size());
+=======
+        runAsync(() -> client.lrange(key, 0, -1), items -> {
+            if (items.isEmpty()) {
+                listResultView.setItems(FXCollections.observableArrayList("[empty]"));
+            } else {
+                listResultView.setItems(FXCollections.observableArrayList(items));
+            }
+            listLengthLabel.setText("Length: " + items.size());
+        }, "LRANGE failed");
+>>>>>>> Stashed changes
     }
 
-    /** 刷新 List 面板的显示。 */
-    private void refreshListDisplay(String key) {
-        List<String> items = client.lrange(key, 0, -1);
-        listResultView.setItems(FXCollections.observableArrayList(items));
+    /**
+     * 按值删除 list 中的元素（客户端侧实现）。
+     * LRANGE 取出全部 → 过滤掉匹配值 → DEL → RPUSH 重建。
+     */
+    @FXML
+    private void onRemoveValue() {
+        String key = listKeyField.getText().trim();
+        String value = listValueField.getText().trim();
+        if (key.isEmpty() || value.isEmpty()) return;
+        runAsync(() -> {
+            List<String> all = client.lrange(key, 0, -1);
+            List<String> remaining = all.stream()
+                    .filter(v -> !v.equals(value))
+                    .toList();
+            int removed = all.size() - remaining.size();
+            if (removed > 0) {
+                client.del(key);
+                if (!remaining.isEmpty()) {
+                    client.rpush(key, remaining.toArray(new String[0]));
+                }
+            }
+            return removed;
+        }, removed -> {
+            if (removed == 0) {
+                showError("Remove by value", "\"" + value + "\" not found in list");
+            } else {
+                refreshListDisplayAsync(key);
+                refreshTableAsync();
+            }
+        }, "Remove by value failed");
+    }
+
+    /**
+     * 按序号删除 list 中的元素（1-based，从头算起）。
+     * LRANGE 取出全部 → 移除指定索引元素 → DEL → RPUSH 重建。
+     */
+    @FXML
+    private void onRemoveIndex() {
+        String key = listKeyField.getText().trim();
+        String idxText = listIndexField.getText().trim();
+        if (key.isEmpty() || idxText.isEmpty()) return;
+        try {
+            int idx = Integer.parseInt(idxText);
+            if (idx < 1) {
+                showError("Remove by index", "Index must be >= 1");
+                return;
+            }
+            final int removeIdx = idx;
+            runAsync(() -> {
+                List<String> all = client.lrange(key, 0, -1);
+                if (removeIdx > all.size()) {
+                    return -1; // 索引越界
+                }
+                all.remove(removeIdx - 1);
+                client.del(key);
+                if (!all.isEmpty()) {
+                    client.rpush(key, all.toArray(new String[0]));
+                }
+                return removeIdx;
+            }, removed -> {
+                if (removed == -1) {
+                    showError("Remove by index",
+                            "Index out of range (list has fewer elements)");
+                } else {
+                    refreshListDisplayAsync(key);
+                    refreshTableAsync();
+                }
+            }, "Remove by index failed");
+        } catch (NumberFormatException e) {
+            showError("Remove by index", "Invalid index: \"" + idxText + "\"");
+        }
     }
 
     // ================================================================
@@ -288,17 +640,18 @@ public class MainController {
     private void onTtlQuery() {
         String key = ttlKeyField.getText().trim();
         if (key.isEmpty()) return;
-        long ttl = client.ttl(key);
-        if (ttl == -2) {
-            ttlResultLabel.setText("Key does not exist");
-            ttlResultLabel.setStyle("-fx-text-fill: red;");
-        } else if (ttl == -1) {
-            ttlResultLabel.setText("No expiry (persistent)");
-            ttlResultLabel.setStyle("-fx-text-fill: blue;");
-        } else {
-            ttlResultLabel.setText("TTL: " + ttl + " seconds");
-            ttlResultLabel.setStyle("-fx-text-fill: green;");
-        }
+        runAsync(() -> client.ttl(key), ttl -> {
+            if (ttl == -2) {
+                ttlResultLabel.setText("Key does not exist");
+                ttlResultLabel.setStyle("-fx-text-fill: red;");
+            } else if (ttl == -1) {
+                ttlResultLabel.setText("No expiry (persistent)");
+                ttlResultLabel.setStyle("-fx-text-fill: blue;");
+            } else {
+                ttlResultLabel.setText("TTL: " + ttl + " seconds");
+                ttlResultLabel.setStyle("-fx-text-fill: green;");
+            }
+        }, "TTL query failed");
     }
 
     // ================================================================
@@ -307,6 +660,7 @@ public class MainController {
 
     @FXML
     private void onSearch() {
+<<<<<<< Updated upstream
         // 改为本地过滤 — 不再依赖服务端的 KEYS 命令
         String pattern = searchField.getText().trim().toLowerCase();
         if (pattern.isEmpty()) return;
@@ -324,12 +678,21 @@ public class MainController {
         }
         tableView.setItems(tableData);
         statusLabel.setText("Filtered: " + tableData.size() + " / " + all.size());
+=======
+        String pattern = searchField.getText();
+        runAsync(this::getAllEntries, all -> {
+            List<CacheEntry> filtered = KeyPatternMatcher.filter(all, pattern);
+            tableData.setAll(filtered);
+            tableView.setItems(tableData);
+            statusLabel.setText("Filtered: " + filtered.size() + " / " + all.size());
+        }, "Search failed");
+>>>>>>> Stashed changes
     }
 
     @FXML
     private void onShowAll() {
         searchField.clear();
-        refreshTable();
+        refreshTableAsync();
     }
 
     // ================================================================
@@ -342,13 +705,14 @@ public class MainController {
         fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON", "*.json"));
         File file = fc.showSaveDialog(tableView.getScene().getWindow());
         if (file != null) {
-            try {
+            java.nio.file.Path path = file.toPath();
+            String fileName = file.getName();
+            runAsync(() -> {
                 List<CacheEntry> entries = getAllEntries();
-                ExportUtil.exportJson(entries, file.toPath());
-                statusLabel.setText("Exported to " + file.getName());
-            } catch (IOException e) {
-                statusLabel.setText("Export failed: " + e.getMessage());
-            }
+                ExportUtil.exportJson(entries, path);
+                return entries.size();
+            }, count -> statusLabel.setText("Exported " + count + " entries to " + fileName),
+            "Export JSON failed");
         }
     }
 
@@ -358,13 +722,14 @@ public class MainController {
         fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV", "*.csv"));
         File file = fc.showSaveDialog(tableView.getScene().getWindow());
         if (file != null) {
-            try {
+            java.nio.file.Path path = file.toPath();
+            String fileName = file.getName();
+            runAsync(() -> {
                 List<CacheEntry> entries = getAllEntries();
-                ExportUtil.exportCsv(entries, file.toPath());
-                statusLabel.setText("Exported to " + file.getName());
-            } catch (IOException e) {
-                statusLabel.setText("Export failed: " + e.getMessage());
-            }
+                ExportUtil.exportCsv(entries, path);
+                return entries.size();
+            }, count -> statusLabel.setText("Exported " + count + " entries to " + fileName),
+            "Export CSV failed");
         }
     }
 
@@ -374,8 +739,7 @@ public class MainController {
 
     @FXML
     private void onRefresh() {
-        refreshTable();
-        updateStatusBar();
+        refreshTableAsync();
     }
 
     private void refreshTable() {

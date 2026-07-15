@@ -235,6 +235,24 @@ public class MockCacheClient implements CacheServerClient {
         return -2; // 键不存在
     }
 
+    // ============ Reconnect ============
+
+    @Override
+    public boolean reconnect() {
+        connected = true;
+        return true;
+    }
+
+    @Override
+    public String getLastHost() {
+        return "mock";
+    }
+
+    @Override
+    public int getLastPort() {
+        return 0;
+    }
+
     // ============ 通配符匹配 ============
 
     private boolean match(String pattern, String key) {

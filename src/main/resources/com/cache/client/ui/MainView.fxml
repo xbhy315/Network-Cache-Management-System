@@ -42,11 +42,14 @@
     <HBox spacing="10" alignment="CENTER_LEFT">
         <Label text="List Op:" style="-fx-font-weight: bold;"/>
         <TextField fx:id="listKeyField" promptText="List Key" prefWidth="150"/>
-        <TextField fx:id="listValueField" promptText="Value" prefWidth="200"/>
+        <TextField fx:id="listValueField" promptText="Value" prefWidth="160"/>
         <Button text="LPUSH" onAction="#onLpush"/>
         <Button text="RPUSH" onAction="#onRpush"/>
         <Button text="LPOP" onAction="#onLpop"/>
         <Button text="LRANGE" onAction="#onLrange"/>
+        <Button text="Rm Val" onAction="#onRemoveValue"/>
+        <TextField fx:id="listIndexField" promptText="Idx" prefWidth="50"/>
+        <Button text="Rm Idx" onAction="#onRemoveIndex"/>
         <Label fx:id="listLengthLabel" text="Length: -"/>
     </HBox>
 

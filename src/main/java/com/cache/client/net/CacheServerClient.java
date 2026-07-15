@@ -97,6 +97,21 @@ public interface CacheServerClient {
      */
     List<String> lrange(String key, int start, int stop);
 
+    // ============ Reconnect ============
+
+    /**
+     * 重新连接到上次连接的服务器。
+     * 断线检测 + 自动重连时使用。
+     * @return true 重连成功，false 重连失败
+     */
+    boolean reconnect();
+
+    /** 获取上次连接的服务器地址。 */
+    String getLastHost();
+
+    /** 获取上次连接的服务器端口。 */
+    int getLastPort();
+
     // ============ TTL 操作 ============
 
     /**
