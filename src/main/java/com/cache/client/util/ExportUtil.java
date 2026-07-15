@@ -25,11 +25,11 @@ ExportUtil {
                     if (e.getType() == CacheEntry.EntryType.LIST) {
                         return String.format(
                                 "    {\"key\":\"%s\",\"type\":\"LIST\",\"listLength\":%d}",
-                                e.getKey(), e.getListLength());
+                                escapeJson(e.getKey()), e.getListLength());
                     }
                     return String.format(
                             "    {\"key\":\"%s\",\"value\":\"%s\",\"type\":\"STRING\",\"ttl\":%d}",
-                            e.getKey(), escapeJson(e.getValue()), e.getTtlSeconds());
+                            escapeJson(e.getKey()), escapeJson(e.getValue()), e.getTtlSeconds());
                 })
                 .collect(Collectors.joining(",\n", "[\n", "\n]"));
         try (BufferedWriter w = Files.newBufferedWriter(file)) {
@@ -42,11 +42,13 @@ ExportUtil {
             w.write("Key,Type,Value,TTL,CreateTime,ListLength\n");
             for (CacheEntry e : entries) {
                 if (e.getType() == CacheEntry.EntryType.LIST) {
-                    w.write(String.format("\"%s\",LIST,,%d,%s,%d\n",
-                            e.getKey(), e.getTtlSeconds(), e.getCreateTime(), e.getListLength()));
+                    w.write(String.format("%s,LIST,,%d,%s,%d\n",
+                            csvField(e.getKey()), e.getTtlSeconds(),
+                            csvField(String.valueOf(e.getCreateTime())), e.getListLength()));
                 } else {
-                    w.write(String.format("\"%s\",STRING,\"%s\",%d,%s,\n",
-                            e.getKey(), e.getValue(), e.getTtlSeconds(), e.getCreateTime()));
+                    w.write(String.format("%s,STRING,%s,%d,%s,\n",
+                            csvField(e.getKey()), csvField(e.getValue()), e.getTtlSeconds(),
+                            csvField(String.valueOf(e.getCreateTime()))));
                 }
             }
         }
@@ -59,5 +61,10 @@ ExportUtil {
                 .replace("\n", "\\n")
                 .replace("\r", "\\r")
                 .replace("\t", "\\t");
+    }
+
+    private static String csvField(String value) {
+        String safeValue = value == null ? "" : value;
+        return "\"" + safeValue.replace("\"", "\"\"") + "\"";
     }
 }

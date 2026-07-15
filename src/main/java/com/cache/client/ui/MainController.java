@@ -4,6 +4,7 @@ import com.cache.client.CacheClientApp;
 import com.cache.client.model.CacheEntry;
 import com.cache.client.net.CacheServerClient;
 import com.cache.client.net.MockCacheClient;
+import com.cache.client.util.CacheEntryLoader;
 import com.cache.client.util.ExportUtil;
 import com.cache.client.util.KeyPatternMatcher;
 import javafx.animation.KeyFrame;
@@ -63,11 +64,8 @@ public class MainController {
     @FXML private Label connectionStatusLabel;
 
     // ================================================================
-    // [组员A] FXML 注入 — CRUD 输入区域
+    // [组员A] FXML 注入 — CRUD 操作区域
     // ================================================================
-    @FXML private TextField keyField;
-    @FXML private TextField valueField;
-    @FXML private TextField ttlField;
 
     // ================================================================
     // [组员C] FXML 注入 — 数据管理区域
@@ -273,6 +271,18 @@ public class MainController {
 
     @FXML
     private void onConnect() {
+        // 已连接时弹出提示，阻止重复连接
+        if (client.isConnected()) {
+            Alert alert = new Alert(Alert.AlertType.WARNING,
+                    "This client is already connected to " + connectedHost + ":" + connectedPort
+                            + ".\nDisconnect first before connecting to a new server.",
+                    ButtonType.OK);
+            alert.setTitle("Already connected");
+            alert.setHeaderText(null);
+            alert.showAndWait();
+            return;
+        }
+
         String host = serverHostField.getText().trim();
         if (host.isEmpty()) host = CacheClientApp.getConfig().getDefaultHost();
         int port = CacheClientApp.getConfig().getDefaultPort();
@@ -299,6 +309,8 @@ public class MainController {
     private void onDisconnect() {
         stopHeartbeat();
         client.disconnect();
+        connectedHost = null;
+        connectedPort = 0;
         connectionStatusLabel.setText("Disconnected");
         connectionStatusLabel.setStyle("-fx-text-fill: gray;");
     }
@@ -377,7 +389,6 @@ public class MainController {
 
     @FXML
     private void onDelete() {
-        // TODO [组员A]: 确认对话框后再删除
         CacheEntry selected = tableView.getSelectionModel().getSelectedItem();
         if (selected == null) return;
 
@@ -661,17 +672,20 @@ public class MainController {
      * 获取全部缓存条目。
      *
      * Mock 模式：直接从 MockCacheClient 的本地存储获取。
-     * RESP 模式：通过 SCAN + GET 逐条获取（暂未实现，待 SCAN 格式确认）。
+     * RESP 模式：通过 SCAN + GET 逐条从服务端获取。
+     *
+     * RESP 服务端没有 TYPE 命令，因此加载器先尝试 GET，
+     * 类型不匹配时再通过 LRANGE 构建 LIST 条目。
      */
     private List<CacheEntry> getAllEntries() {
         if (client instanceof MockCacheClient mock) {
             // Mock 模式：直接读本地存储
             return mock.getAllLocalEntries();
         }
-        // RESP 模式：待 SCAN 命令格式确认后实现
-        // TODO [组员C]: SCAN 格式确认后改为:
-        //   List<String> keys = client.scan("0", "*");
-        //   for (key : keys) { 逐个 GET 组装 CacheEntry }
-        return tableData.stream().toList();
+        // RESP 模式：未连接时返回空列表，避免 NPE
+        if (!client.isConnected()) {
+            return List.of();
+        }
+        return CacheEntryLoader.load(client);
     }
 }

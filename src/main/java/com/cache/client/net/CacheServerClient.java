@@ -117,8 +117,7 @@ public interface CacheServerClient {
     /**
      * TTL — 查询键的剩余生存时间。
      *
-     * TODO [第二组格式待确认]:
-     *   标准 REDIS: "TTL key" → :seconds\r\n
+     * 格式已由第二组确认（标准 Redis 语义）：
      *   :n      剩余 n 秒
      *   :-1     key 存在但永不过期
      *   :-2     key 不存在

@@ -211,7 +211,7 @@ public class MockCacheClient implements CacheServerClient {
         int realStop  = stop  < 0 ? len + stop : Math.min(stop, len - 1);
         if (realStart > realStop) return List.of();
 
-        return list.subList(realStart, realStop + 1);
+        return new ArrayList<>(list.subList(realStart, realStop + 1));
     }
 
     // ============ TTL ============
