@@ -62,12 +62,12 @@ public interface CacheServerClient {
     /**
      * SCAN — 遍历匹配模式的键列表。
      *
-     * TODO [第二组格式待确认]:
-     *   标准 RESP: *2\r\n$3\r\n23\r\n*N\r\nkey1\r\nkey2\r\n...
-     *   返回: (nextCursor, keys)
-     *   待第二组确认后调整返回类型和参数。
+     * 第二组已确认格式（非游标式，一次性返回全部匹配 key）。
+     * pattern 为 null / "" / "*" 时返回所有 key。
+     * @param pattern 通配符模式（支持 *）
+     * @return 匹配的 key 列表
      */
-    // List<String> scan(String cursor, String matchPattern);
+    List<String> scan(String pattern);
 
     // ============ List 操作 ============
 

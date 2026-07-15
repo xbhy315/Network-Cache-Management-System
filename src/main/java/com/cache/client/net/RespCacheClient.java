@@ -93,15 +93,6 @@ public class RespCacheClient implements CacheServerClient {
      * 断线检测：捕获 IOException 时自动标记 connected=false。
      */
     private RespResponse execute(String... args) {
-<<<<<<< Updated upstream
-        try {
-            byte[] request = RespCodec.encode(args);
-            out.write(request);
-            out.flush();
-            return RespCodec.decode(in);
-        } catch (IOException e) {
-            throw new RuntimeException("RESP command failed: " + String.join(" ", args), e);
-=======
         synchronized (lock) {
             try {
                 if (out == null) {
@@ -115,7 +106,6 @@ public class RespCacheClient implements CacheServerClient {
                 connected = false;
                 throw new RuntimeException("RESP command failed: " + String.join(" ", args), e);
             }
->>>>>>> Stashed changes
         }
     }
 
@@ -222,13 +212,12 @@ public class RespCacheClient implements CacheServerClient {
      *     $3\r\n23\r\n       ← 下一个游标
      *     *N\r\nk1\r\nk2\r\n...  ← 本批 key 列表
      */
-    // @Override — 待格式确认后放开
-    public List<String> scan(String cursor, String matchPattern) {
-        // TODO [组员B]: 待第二组确认 SCAN 格式后实现
-        // 预期实现:
-        //   RespResponse resp = execute("SCAN", cursor, "MATCH", matchPattern);
-        //   return expectArray(resp);  // 解析数组元素
-        throw new UnsupportedOperationException("SCAN not yet implemented - waiting for protocol confirmation");
+    @Override
+    public List<String> scan(String pattern) {
+        if (pattern == null || pattern.isEmpty() || pattern.equals("*")) {
+            return expectArray("SCAN");
+        }
+        return expectArray("SCAN", pattern);
     }
 
     // ================================================================

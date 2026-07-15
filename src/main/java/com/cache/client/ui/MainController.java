@@ -5,16 +5,14 @@ import com.cache.client.model.CacheEntry;
 import com.cache.client.net.CacheServerClient;
 import com.cache.client.net.MockCacheClient;
 import com.cache.client.util.ExportUtil;
-<<<<<<< Updated upstream
-=======
 import com.cache.client.util.KeyPatternMatcher;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
->>>>>>> Stashed changes
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.stage.FileChooser;
@@ -41,12 +39,9 @@ public class MainController {
     private CacheServerClient client;
     private String tabId = "default";
     private final ObservableList<CacheEntry> tableData = FXCollections.observableArrayList();
-<<<<<<< Updated upstream
-=======
     private String connectedHost;
     private int connectedPort;
     private Timeline heartbeat;
->>>>>>> Stashed changes
 
     /**
      * 设置当前标签页的客户端实例。
@@ -132,14 +127,6 @@ public class MainController {
         // typeColumn — 显示数据类型（STRING / LIST）
         typeColumn.setCellValueFactory(new PropertyValueFactory<>("type"));
 
-<<<<<<< Updated upstream
-        // statusColumn — 用于显示"正常/已过期/即将过期"状态
-        // TODO [组员A]: 用自定义 cellFactory 显示条目状态
-        // TTL > 60s → "正常"
-        // TTL 0~60s → "即将过期"
-        // TTL = 0  → "已过期"
-        // LIST 类型 → "[N items]"
-=======
         // statusColumn — 用自定义 cellFactory 显示条目状态
         statusColumn.setCellValueFactory(new PropertyValueFactory<>("key"));
         statusColumn.setCellFactory(col -> new TableCell<CacheEntry, String>() {
@@ -167,7 +154,6 @@ public class MainController {
                 }
             }
         });
->>>>>>> Stashed changes
 
         // 选中表格中的 LIST 行时自动填充 List Key 输入框
         tableView.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
@@ -294,11 +280,6 @@ public class MainController {
             port = Integer.parseInt(serverPortField.getText().trim());
         } catch (NumberFormatException ignored) {}
 
-<<<<<<< Updated upstream
-        try {
-            client.connect(host, port);
-            connectionStatusLabel.setText("Connected to " + host + ":" + port);
-=======
         final String connectHost = host;
         final int connectPort = port;
 
@@ -309,7 +290,6 @@ public class MainController {
             connectedHost = connectHost;
             connectedPort = connectPort;
             connectionStatusLabel.setText("Connected to " + connectHost + ":" + connectPort);
->>>>>>> Stashed changes
             connectionStatusLabel.setStyle("-fx-text-fill: green;");
             startHeartbeat();
         }, "Connection failed");
@@ -341,23 +321,11 @@ public class MainController {
 
     @FXML
     private void onAdd() {
-        // TODO [组员A]: 改为弹出 CacheEntryDialog 进行输入
-        String key = keyField.getText().trim();
-        String value = valueField.getText().trim();
-        long ttl = 0;
         try {
-            ttl = Long.parseLong(ttlField.getText().trim());
-        } catch (NumberFormatException ignored) {}
-        if (key.isEmpty() || value.isEmpty()) return;
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("CacheEntryDialog.fxml"));
+            DialogPane dialogPane = loader.load();
+            CacheEntryController controller = loader.getController();
 
-<<<<<<< Updated upstream
-        client.set(key, value, ttl);
-        refreshTable();
-        updateStatusBar();
-        keyField.clear();
-        valueField.clear();
-        ttlField.clear();
-=======
             Dialog<ButtonType> dialog = new Dialog<>();
             dialog.setDialogPane(dialogPane);
 
@@ -405,20 +373,12 @@ public class MainController {
         alert.setTitle(title);
         alert.setHeaderText(null);
         alert.showAndWait();
->>>>>>> Stashed changes
     }
 
     @FXML
     private void onDelete() {
         // TODO [组员A]: 确认对话框后再删除
         CacheEntry selected = tableView.getSelectionModel().getSelectedItem();
-<<<<<<< Updated upstream
-        if (selected != null) {
-            client.del(selected.getKey());
-            refreshTable();
-            updateStatusBar();
-        }
-=======
         if (selected == null) return;
 
         String deleteKey = selected.getKey();
@@ -433,17 +393,11 @@ public class MainController {
                 }, ok -> refreshTableAsync(), "Delete failed");
             }
         });
->>>>>>> Stashed changes
     }
 
     @FXML
     private void onClearAll() {
-<<<<<<< Updated upstream
-        // TODO [组员A]: 弹出确认对话框
-        // 由于服务端不支持 FLUSHDB，从本地缓存逐条删除
-=======
         // 弹出确认对话框后再逐条删除（服务端不支持 FLUSHDB）
->>>>>>> Stashed changes
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
                 "Clear all entries? This cannot be undone.",
                 ButtonType.YES, ButtonType.NO);
@@ -468,12 +422,6 @@ public class MainController {
         String key = listKeyField.getText().trim();
         String value = listValueField.getText().trim();
         if (key.isEmpty() || value.isEmpty()) return;
-<<<<<<< Updated upstream
-        int len = client.lpush(key, value);
-        refreshListDisplay(key);
-        listLengthLabel.setText("Length: " + len);
-        refreshTable();
-=======
         runAsync(() -> {
             int len = client.lpush(key, value);
             List<String> items = client.lrange(key, 0, -1);
@@ -483,7 +431,6 @@ public class MainController {
             listLengthLabel.setText("Length: " + (int) result[0]);
             refreshTableAsync();
         }, "LPUSH failed");
->>>>>>> Stashed changes
     }
 
     @FXML
@@ -491,12 +438,6 @@ public class MainController {
         String key = listKeyField.getText().trim();
         String value = listValueField.getText().trim();
         if (key.isEmpty() || value.isEmpty()) return;
-<<<<<<< Updated upstream
-        int len = client.rpush(key, value);
-        refreshListDisplay(key);
-        listLengthLabel.setText("Length: " + len);
-        refreshTable();
-=======
         runAsync(() -> {
             int len = client.rpush(key, value);
             List<String> items = client.lrange(key, 0, -1);
@@ -506,23 +447,12 @@ public class MainController {
             listLengthLabel.setText("Length: " + (int) result[0]);
             refreshTableAsync();
         }, "RPUSH failed");
->>>>>>> Stashed changes
     }
 
     @FXML
     private void onLpop() {
         String key = listKeyField.getText().trim();
         if (key.isEmpty()) return;
-<<<<<<< Updated upstream
-        String value = client.lpop(key);
-        if (value != null) {
-            listResultView.getItems().add(0, "POP: " + value);
-            refreshListDisplay(key);
-        } else {
-            listResultView.getItems().add(0, "POP: (empty)");
-        }
-        refreshTable();
-=======
         runAsync(() -> {
             String value = client.lpop(key);
             List<String> items = (value != null) ? client.lrange(key, 0, -1) : List.of();
@@ -536,18 +466,12 @@ public class MainController {
             }
             refreshTableAsync();
         }, "LPOP failed");
->>>>>>> Stashed changes
     }
 
     @FXML
     private void onLrange() {
         String key = listKeyField.getText().trim();
         if (key.isEmpty()) return;
-<<<<<<< Updated upstream
-        List<String> items = client.lrange(key, 0, -1);
-        listResultView.setItems(FXCollections.observableArrayList(items));
-        listLengthLabel.setText("Length: " + items.size());
-=======
         runAsync(() -> client.lrange(key, 0, -1), items -> {
             if (items.isEmpty()) {
                 listResultView.setItems(FXCollections.observableArrayList("[empty]"));
@@ -556,7 +480,6 @@ public class MainController {
             }
             listLengthLabel.setText("Length: " + items.size());
         }, "LRANGE failed");
->>>>>>> Stashed changes
     }
 
     /**
@@ -660,25 +583,6 @@ public class MainController {
 
     @FXML
     private void onSearch() {
-<<<<<<< Updated upstream
-        // 改为本地过滤 — 不再依赖服务端的 KEYS 命令
-        String pattern = searchField.getText().trim().toLowerCase();
-        if (pattern.isEmpty()) return;
-
-        // 获取全部本地条目
-        List<CacheEntry> all = getAllEntries();
-        if (pattern.equals("*")) {
-            tableData.setAll(all);
-        } else {
-            // 简单通配符匹配：* 表示任意字符
-            String regex = "\\Q" + pattern.replace("*", "\\E.*\\Q") + "\\E";
-            tableData.setAll(all.stream()
-                    .filter(e -> e.getKey().matches(regex))
-                    .toList());
-        }
-        tableView.setItems(tableData);
-        statusLabel.setText("Filtered: " + tableData.size() + " / " + all.size());
-=======
         String pattern = searchField.getText();
         runAsync(this::getAllEntries, all -> {
             List<CacheEntry> filtered = KeyPatternMatcher.filter(all, pattern);
@@ -686,7 +590,6 @@ public class MainController {
             tableView.setItems(tableData);
             statusLabel.setText("Filtered: " + filtered.size() + " / " + all.size());
         }, "Search failed");
->>>>>>> Stashed changes
     }
 
     @FXML

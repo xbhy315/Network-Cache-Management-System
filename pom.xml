@@ -43,8 +43,6 @@
                     <mainClass>com.cache.client.CacheClientApp</mainClass>
                 </configuration>
             </plugin>
-<<<<<<< Updated upstream
-=======
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jlink-plugin</artifactId>
@@ -73,7 +71,6 @@
                     </execution>
                 </executions>
             </plugin>
->>>>>>> Stashed changes
         </plugins>
     </build>
 </project>

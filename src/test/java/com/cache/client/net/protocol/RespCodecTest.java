@@ -51,7 +51,7 @@ class RespCodecTest {
     @Test
     void shouldEncodeLpushCommand() {
         byte[] encoded = RespCodec.encode("LPUSH", "q", "a", "b", "c");
-        String expected = "*4\r\n$5\r\nLPUSH\r\n$1\r\nq\r\n$1\r\na\r\n$1\r\nb\r\n$1\r\nc\r\n";
+        String expected = "*5\r\n$5\r\nLPUSH\r\n$1\r\nq\r\n$1\r\na\r\n$1\r\nb\r\n$1\r\nc\r\n";
         assertEquals(expected, new String(encoded, StandardCharsets.UTF_8));
     }
 
@@ -83,7 +83,7 @@ class RespCodecTest {
         String resp = "-ERR unknown command\r\n";
         RespResponse result = decode(resp);
         assertEquals(RespResponse.Type.ERROR, result.getType());
-        assertEquals("unknown command", result.getError());
+        assertEquals("ERR unknown command", result.getError());
     }
 
     // ================================================================

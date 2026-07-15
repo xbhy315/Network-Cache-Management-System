@@ -146,13 +146,13 @@ public class MockCacheClient implements CacheServerClient {
      * 由于格式待第二组确认，当前实现为一次性返回全部匹配 key。
      * TODO: 第二组确认游标格式后调整。
      */
-    // @Override — 待格式确认后放开
-    public List<String> scan(String cursor, String matchPattern) {
-        if (matchPattern == null || matchPattern.isEmpty() || "*".equals(matchPattern)) {
+    @Override
+    public List<String> scan(String pattern) {
+        if (pattern == null || pattern.isEmpty() || "*".equals(pattern)) {
             return new ArrayList<>(allKeys);
         }
         return allKeys.stream()
-                .filter(k -> match(k, matchPattern))
+                .filter(k -> match(k, pattern))
                 .collect(Collectors.toList());
     }
 
