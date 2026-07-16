@@ -82,6 +82,17 @@ public class CacheClientApp extends Application {
         stage.show();
     }
 
+    @Override
+    public void stop() {
+        // 窗口关闭时：断开所有客户端连接，释放 Socket 资源
+        for (String tabId : CLIENTS.keySet()) {
+            CacheServerClient client = CLIENTS.remove(tabId);
+            if (client != null) {
+                client.disconnect();
+            }
+        }
+    }
+
     public static void main(String[] args) {
         launch();
     }
