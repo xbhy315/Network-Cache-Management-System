@@ -20,7 +20,6 @@ public class CacheClientApp extends Application {
 
     /**
      * 客户端注册表（Client Registry）。
-     *
      * 单客户端模式：使用 "default" 作为 tabId，通过 getDefaultClient() 访问。
      * 多客户端模式：TabPaneController 为每个标签页分配独立 tabId，
      *              通过 createClient(tabId) / getClient(tabId) 管理多实例。

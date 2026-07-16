@@ -142,9 +142,6 @@ public class MockCacheClient implements CacheServerClient {
 
     /**
      * SCAN — 返回所有匹配 pattern 的 key 列表。
-     *
-     * 由于格式待第二组确认，当前实现为一次性返回全部匹配 key。
-     * TODO: 第二组确认游标格式后调整。
      */
     @Override
     public List<String> scan(String pattern) {
