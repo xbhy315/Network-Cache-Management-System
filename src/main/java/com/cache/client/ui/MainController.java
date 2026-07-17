@@ -187,7 +187,7 @@ public class MainController {
             String msg = ex != null ? ex.getMessage() : "Unknown error";
             if (!client.isConnected()) {
                 connectionStatusLabel.setText("Connection lost: " + msg);
-                connectionStatusLabel.setStyle("-fx-text-fill: red;");
+                connectionStatusLabel.setStyle("-fx-text-fill: #e6e6fa;");
             }
             if (errorTitle != null) {
                 showError(errorTitle, msg);
