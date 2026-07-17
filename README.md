@@ -154,7 +154,7 @@ src/test/java/com/cache/client/
 | 类别 | 内容 | 状态 |
 |:----:|------|:----:|
 | 接口层 | `CacheServerClient` 接口（16 方法） | ✅ 完成 |
-| Mock 实现 | `MockCacheClient`（34 测试用例） | ✅ 完成 |
+| Mock 实现 | `MockCacheClient`（18 测试用例） | ✅ 完成 |
 | RESP 协议 | `RespCodec` 编解码 + `RespResponse` | ✅ 完成 |
 | RESP 客户端 | `RespCacheClient` TCP 通信 | ✅ 完成 |
 | 主界面 | CRUD / List / TTL / PING / 搜索 / 导出 | ✅ 完成 |
