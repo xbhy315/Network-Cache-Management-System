@@ -94,7 +94,7 @@ public class RespCacheClient implements CacheServerClient {
      * 断线检测：捕获 IOException 时自动标记 connected=false。
      */
     private RespResponse execute(String... args) {
-        synchronized (lock) {
+        synchronized (lock) {//防止多线程并发写 Socket
             try {
                 if (out == null) {
                     throw new IOException("Client not connected — call connect() first");
